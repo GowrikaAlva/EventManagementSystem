@@ -1,0 +1,276 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Valora v2 — Injected Styles
+   These styles are injected into ChatGPT, Gemini, Claude, Copilot etc.
+   All selectors are prefixed with #valora- to avoid clashing with host CSS.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ── Warning Banner ─────────────────────────────────────────────────────── */
+
+#valora-warning {
+  /* Positioning */
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;       /* highest possible — always on top */
+
+  /* Size */
+  min-width: 280px;
+  max-width: 380px;
+
+  /* Appearance */
+  background: #111111;
+  border: 1.5px solid #e53e3e;
+  border-left: 4px solid #e53e3e;
+  border-radius: 10px;
+  padding: 14px 42px 14px 50px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(229, 62, 62, 0.1);
+
+  /* Typography */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #f0f0f0;
+
+  /* Hidden until .valora-visible is added */
+  opacity: 0;
+  transform: translateY(14px) scale(0.97);
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+#valora-warning.valora-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Warning icon */
+#valora-icon {
+  position: absolute;
+  top: 14px;
+  left: 15px;
+  font-size: 18px;
+  color: #f6ad55;
+  line-height: 1;
+}
+
+/* Dismiss (✕) button */
+#valora-close {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  background: transparent;
+  border: none;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  font-family: inherit;
+  transition: color 0.15s, background 0.15s;
+}
+
+#valora-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Banner heading */
+.valora-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #ffffff;
+  margin-bottom: 8px;
+  letter-spacing: 0.01em;
+}
+
+/* Match item list */
+.valora-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.valora-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #b0b0b0;
+}
+
+/* Monospace masked value */
+.valora-list code {
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 11.5px;
+  color: #fbd38d;
+  background: rgba(251, 211, 141, 0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+/* Colored type badge */
+.valora-tag {
+  display: inline-block;
+  background: rgba(229, 62, 62, 0.18);
+  color: #fc8181;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+
+/* ── Send-Block Modal ────────────────────────────────────────────────────── */
+
+/* Dark backdrop — covers the entire page */
+#valora-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: valoraFadeIn 0.18s ease;
+}
+
+@keyframes valoraFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* The white-ish card in the centre */
+#valora-modal-box {
+  background: #191919;
+  border: 1px solid #2e2e2e;
+  border-radius: 14px;
+  padding: 26px 28px;
+  width: 340px;
+  max-width: calc(100vw - 40px);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #e8e8e8;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  animation: valoraSlideUp 0.2s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+@keyframes valoraSlideUp {
+  from { transform: translateY(16px) scale(0.97); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);    opacity: 1; }
+}
+
+/* Modal heading */
+#valora-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fc8181;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Modal body text */
+#valora-modal-body p {
+  font-size: 13px;
+  color: #999;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+/* Match list inside modal */
+#valora-match-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+#valora-match-list li {
+  display: flex;
+  align-items: center;
+}
+
+/* Type badge inside modal (slightly larger than banner badge) */
+.valora-modal-tag {
+  display: inline-block;
+  background: rgba(229, 62, 62, 0.15);
+  color: #fc8181;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* Small grey note below match list */
+.valora-modal-note {
+  font-size: 12px !important;
+  color: #555 !important;
+  margin-top: 4px;
+  line-height: 1.6 !important;
+}
+
+.valora-modal-note b {
+  color: #888;
+  font-weight: 600;
+}
+
+/* Button row */
+#valora-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* Primary action — redact + send */
+#valora-btn-redact {
+  flex: 1;
+  background: #e53e3e;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+#valora-btn-redact:hover {
+  background: #c53030;
+}
+
+/* Secondary action — cancel */
+#valora-btn-cancel {
+  flex: 1;
+  background: #222;
+  color: #999;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+
+#valora-btn-cancel:hover {
+  background: #2e2e2e;
+  color: #e8e8e8;
+}
