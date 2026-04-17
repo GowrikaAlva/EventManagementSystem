@@ -11,9 +11,9 @@ const Rules = () => {
     try {
       const res = await api.get('/rules');
       setRules({
-        domains: res.data.domains || [],
-        keywords: res.data.keywords || [],
-        customPatterns: res.data.customPatterns || []
+        domains: res.data.companyRules?.domains || [],
+        keywords: res.data.companyRules?.keywords || [],
+        customPatterns: res.data.companyRules?.customPatterns || []
       });
     } catch(err) {
       console.error(err);
