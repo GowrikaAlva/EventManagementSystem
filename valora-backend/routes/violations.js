@@ -16,6 +16,7 @@ const express   = require("express");
 const router    = express.Router();
 const Violation = require("../models/Violation");
 const { asyncHandler } = require("../middleware/errorHandler");
+const { authMiddleware, adminMiddleware } = require("../middleware/authMiddleware");
 
 // ── POST /api/violations ──────────────────────────────────────────────────────
 // Called by the Chrome extension whenever a user clicks "Send with [REDACTED]".
@@ -28,6 +29,7 @@ const { asyncHandler } = require("../middleware/errorHandler");
 // }
 router.post(
   "/",
+  authMiddleware,
   asyncHandler(async (req, res) => {
     const { url, matches, timestamp } = req.body;
 
@@ -46,6 +48,7 @@ router.post(
       .map((m) => ({ type: m.type.trim() }));
 
     const violation = await Violation.create({
+      userId:    req.user ? req.user.id : undefined,
       url:       (url || "unknown").trim(),
       matches:   cleanMatches,
       timestamp: timestamp ? new Date(timestamp) : new Date(),
@@ -63,6 +66,7 @@ router.post(
 // Returns paginated violation log for the admin dashboard.
 router.get(
   "/",
+  [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const page  = Math.max(parseInt(req.query.page)  || 1, 1);
@@ -112,6 +116,7 @@ router.get(
 // }
 router.get(
   "/stats",
+  [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const pipeline = [
       // Unwind the matches array so each type becomes its own document
@@ -150,6 +155,7 @@ router.get(
 // In production you'd want to protect this with an auth middleware.
 router.delete(
   "/",
+  [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { deletedCount } = await Violation.deleteMany({});
     console.log(`[Violations] Deleted all — ${deletedCount} records removed`);

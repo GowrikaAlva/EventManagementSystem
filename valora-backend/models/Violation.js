@@ -25,6 +25,13 @@ const MatchTypeSchema = new mongoose.Schema(
 
 const ViolationSchema = new mongoose.Schema(
   {
+    // User who generated the violation
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false, // Make it optional for fallback backwards compatibility if needed
+    },
+
     // The AI site URL where the violation happened
     url: {
       type:    String,

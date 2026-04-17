@@ -30,12 +30,14 @@ const app = express();
 
 // CORS — allow all origins in dev (Chrome extension doesn't need CORS, but a
 // browser-based admin dashboard would). Restrict in production via CORS_ORIGIN env.
-app.use(
-  cors({
-    origin:  process.env.CORS_ORIGIN || "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
-  })
-);
+app.use(cors({
+  origin: [
+    "https://chatgpt.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+  ],
+  credentials: true
+}));
 
 // Parse JSON request bodies (content.js sends application/json)
 app.use(express.json());
@@ -57,6 +59,13 @@ app.get("/", (req, res) => {
     version: "1.0.0",
   });
 });
+
+// Authentication logic
+app.use("/api/auth", require("./routes/auth"));
+
+// Admin Endpoints
+app.use("/api/users", require("./routes/users"));
+app.use("/api/analytics", require("./routes/analytics"));
 
 // Detection rules (read by extension, managed by admin dashboard)
 app.use("/api/rules", require("./routes/rules"));

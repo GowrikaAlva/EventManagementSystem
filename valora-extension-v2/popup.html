@@ -234,9 +234,86 @@
       font-size: 10px;
       color: #2e2e2e;
     }
+
+    /* ── Login View ── */
+    #login-view {
+      display: flex;
+      flex-direction: column;
+      padding: 20px 18px;
+      gap: 12px;
+    }
+
+    #login-view h2 {
+      font-size: 14px;
+      color: #fff;
+      margin-bottom: 5px;
+    }
+
+    .input-grp {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .input-grp label {
+      font-size: 11px;
+      color: #aaa;
+    }
+
+    .login-btn {
+      margin-top: 10px;
+      background: #48bb78;
+      color: #fff;
+      border: none;
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .login-btn:hover { background: #38a169; }
+
+    #login-error {
+      color: #fc8181;
+      font-size: 11px;
+      display: none;
+    }
+
+    /* ── Hide/Show classes ── */
+    .hidden {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
+
+  <!-- Login View -->
+  <div id="login-view">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+      <div class="logo">⚠</div>
+      <h1 style="font-size:16px;">Valora Security</h1>
+    </div>
+    
+    <h2>Employee Login</h2>
+    <div id="login-error"></div>
+    
+    <div class="input-grp" id="grp-email">
+      <label>Email</label>
+      <input type="text" id="login-email" placeholder="you@company.com" />
+    </div>
+
+    <div class="input-grp" id="grp-password" class="hidden">
+      <label>Password</label>
+      <input type="password" id="login-password" />
+    </div>
+
+    <button class="login-btn" id="btn-login-next">Next</button>
+    <button class="login-btn hidden" id="btn-login-submit">Login</button>
+  </div>
+
+  <!-- Main View -->
+  <div id="main-view" class="hidden">
 
   <!-- Header -->
   <div class="header">
@@ -312,7 +389,11 @@
   </div>
 
   <!-- Footer -->
-  <div class="footer">Valora v2 · All detection runs locally · No data leaves your browser</div>
+  <div class="footer">Valora v2 · All detection runs locally · No data leaves your browser<br>
+    <a href="#" id="btn-logout" style="color: #666; text-decoration: underline; margin-top: 5px; display: inline-block;">Logout</a>
+  </div>
+
+  </div> <!-- End Main View -->
 
   <script src="popup.js"></script>
 </body>

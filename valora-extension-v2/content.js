@@ -17,8 +17,17 @@
 (function () {
   "use strict";
 
+  if (window.location.protocol === "chrome:" || window.location.href.startsWith("chrome://")) {
+    console.warn("Skipping Valora on chrome internal pages");
+    return;
+  }
+  
+  console.log("Running Valora on:", window.location.href);
+
   // ─────────────────────────────────────────────────────────────────────────
   // 1. SELECTORS
+
+
   // Tried in order — first match wins.
   // We check the specific ChatGPT ID first, then generic contenteditable,
   // then fall back to textarea for older/simpler sites.
@@ -47,10 +56,46 @@
   let currentMatches = [];       // last set of matches found by findSensitiveData
   let sendBlocked    = false;    // is the send button currently blocked?
 
+  let localRules = {
+    domains: [],
+    keywords: [],
+    customPatterns: []
+  };
+
+  let companyRules = {
+    domains: [],
+    keywords: [],
+    customPatterns: []
+  };
+
+  async function initRules() {
+    if (!window.location.href.startsWith("http")) {
+      console.warn("Invalid page for API call");
+      return;
+    }
+
+    const rules = await fetchCompanyRules();
+    console.log("Fetched rules:", rules);
+
+    // Fallback if backend empty
+    if (!rules.domains.length && !rules.keywords.length && !rules.customPatterns.length) {
+      console.warn("Using local fallback rules");
+      return;
+    }
+
+    companyRules = rules;
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // 3. STARTUP — load settings + fetch backend rules
   // ─────────────────────────────────────────────────────────────────────────
   (async function init() {
+    const { valoraToken } = await new Promise((req) => chrome.storage.local.get(["valoraToken"], req));
+    if (!valoraToken) {
+      console.warn("[Valora] User not logged in. Extension detection halted. Please login via the popup.");
+      return;
+    }
+
     // 3a. Load user's popup toggle settings from chrome.storage
     chrome.storage.local.get(
       {
@@ -63,15 +108,15 @@
       },
       (settings) => {
         applyStorageSettings(settings); // defined in detector.js
+        if (settings.companyDomains) {
+          localRules.domains = settings.companyDomains;
+        }
         console.log("[Valora] Storage settings applied ✓");
       }
     );
 
     // 3b. Fetch company-specific rules from the backend
-    // fetchCompanyRules() is defined in services/api.js
-    // loadBackendRules() is defined in detector.js
-    const rules = await fetchCompanyRules();
-    loadBackendRules(rules);
+    await initRules();
   })();
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -340,8 +385,16 @@
       return;
     }
 
-    // findSensitiveData() is defined in detector.js
-    const matches = findSensitiveData(text);
+    const finalRules = {
+      domains: [...localRules.domains, ...companyRules.domains],
+      keywords: [...localRules.keywords, ...companyRules.keywords],
+      customPatterns: [...localRules.customPatterns, ...companyRules.customPatterns]
+    };
+
+    console.log("Final Rules:", finalRules);
+    console.log("Text:", text);
+
+    const matches = detectSensitiveData(text, finalRules);
     currentMatches = matches;
 
     if (matches.length > 0) {

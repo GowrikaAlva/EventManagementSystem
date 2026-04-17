@@ -5,7 +5,100 @@
 //   - Backend health check (pings localhost:5000 to show online/offline status)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const VALORA_API_BASE = "http://localhost:5000/api";
+const VALORA_API_BASE = "http://127.0.0.1:5000/api";
+
+/* ── Auth Logic ── */
+let isFirstLoginFlow = false;
+
+function showView(view) {
+  document.getElementById("login-view").classList.add("hidden");
+  document.getElementById("main-view").classList.add("hidden");
+  document.getElementById(view).classList.remove("hidden");
+}
+
+function showError(msg) {
+  const err = document.getElementById("login-error");
+  err.textContent = msg;
+  err.style.display = "block";
+}
+
+async function checkAuth() {
+  chrome.storage.local.get(["valoraToken"], (res) => {
+    if (res.valoraToken) {
+      showView("main-view");
+      checkBackend();
+    } else {
+      showView("login-view");
+    }
+  });
+}
+
+// Check Email
+document.getElementById("btn-login-next").addEventListener("click", async () => {
+  const email = document.getElementById("login-email").value.trim();
+  if(!email) return showError("Email required");
+  
+  try {
+    const res = await fetch(`${VALORA_API_BASE}/auth/check-email`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if(res.ok && data.exists) {
+      isFirstLoginFlow = data.isFirstLogin;
+      document.getElementById("grp-password").classList.remove("hidden");
+      document.getElementById("btn-login-next").classList.add("hidden");
+      document.getElementById("btn-login-submit").classList.remove("hidden");
+      document.getElementById("login-error").style.display = "none";
+      if(isFirstLoginFlow) {
+        document.querySelector("#grp-password label").textContent = "Set New Password";
+      }
+    } else {
+      showError("Email not found");
+    }
+  } catch(e) {
+    showError("Network error. Is backend running?");
+  }
+});
+
+// Login or Set Password
+document.getElementById("btn-login-submit").addEventListener("click", async () => {
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  if(!password) return showError("Password required");
+  
+  const endpoint = isFirstLoginFlow ? "/auth/set-password" : "/auth/login";
+  const payload = isFirstLoginFlow ? { email, newPassword: password } : { email, password };
+  
+  try {
+    const res = await fetch(`${VALORA_API_BASE}${endpoint}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(res.ok && data.token) {
+      chrome.storage.local.set({ valoraToken: data.token, valoraUser: data.user }, () => {
+        showView("main-view");
+        checkBackend();
+      });
+    } else {
+      showError(data.error || "Login failed");
+    }
+  } catch(e) {
+    showError("Network error");
+  }
+});
+
+document.getElementById("btn-logout").addEventListener("click", () => {
+  chrome.storage.local.remove(["valoraToken", "valoraUser"], () => {
+    document.getElementById("login-email").value = "";
+    document.getElementById("login-password").value = "";
+    document.getElementById("grp-password").classList.add("hidden");
+    document.getElementById("btn-login-next").classList.remove("hidden");
+    document.getElementById("btn-login-submit").classList.add("hidden");
+    showView("login-view");
+  });
+});
 
 const DEFAULTS = {
   enableEmailDetection:      true,
@@ -104,11 +197,13 @@ async function checkBackend() {
   const label = document.getElementById("backend-label");
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2500);
+    const tokenOptions = {};
+    const stored = await new Promise((req) => chrome.storage.local.get(["valoraToken"], req));
+    if (stored.valoraToken) tokenOptions.Authorization = `Bearer ${stored.valoraToken}`;
 
     const res = await fetch(`${VALORA_API_BASE}/rules`, {
       method: "GET",
+      headers: { ...tokenOptions },
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -129,4 +224,4 @@ async function checkBackend() {
   }
 }
 
-checkBackend();
+checkAuth();

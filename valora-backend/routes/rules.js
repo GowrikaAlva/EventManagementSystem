@@ -14,6 +14,7 @@ const express = require("express");
 const router  = express.Router();
 const Rule    = require("../models/Rule");
 const { asyncHandler } = require("../middleware/errorHandler");
+const { authMiddleware, adminMiddleware } = require("../middleware/authMiddleware");
 
 // ── Helper: get or create the singleton rules document ───────────────────────
 async function getRules() {
@@ -37,13 +38,23 @@ async function getRules() {
 // Returns the full rules object; extension merges it with its local patterns.
 router.get(
   "/",
+  authMiddleware,
   asyncHandler(async (req, res) => {
-    const rules = await getRules();
-    res.json({
-      domains:        rules.domains,
-      keywords:       rules.keywords,
-      customPatterns: rules.customPatterns,
-      updatedAt:      rules.updatedAt,
+    const rule = await Rule.findOne();
+    console.log("Rule from DB:", rule);
+
+    if (!rule) {
+      return res.json({
+        domains: [],
+        keywords: [],
+        customPatterns: []
+      });
+    }
+
+    return res.json({
+      domains: rule.domains || [],
+      keywords: rule.keywords || [],
+      customPatterns: rule.customPatterns || []
     });
   })
 );
@@ -53,6 +64,7 @@ router.get(
 // Body: { domains[], keywords[], customPatterns[] }
 router.put(
   "/",
+  [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { domains, keywords, customPatterns } = req.body;
 
@@ -73,6 +85,7 @@ router.put(
 // Add a single domain. Body: { domain: "@newco.com" }
 router.post(
   "/domain",
+  [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { domain } = req.body;
     if (!domain || typeof domain !== "string") {
@@ -98,6 +111,7 @@ router.post(
 // Remove a single domain. Body: { domain: "@oldco.com" }
 router.delete(
   "/domain",
+  [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { domain } = req.body;
     if (!domain) {
@@ -119,6 +133,7 @@ router.delete(
 // Add a keyword. Body: { keyword: "Project Falcon" }
 router.post(
   "/keyword",
+  [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { keyword } = req.body;
     if (!keyword || typeof keyword !== "string") {
@@ -147,6 +162,7 @@ router.post(
 // Remove a keyword. Body: { keyword: "Project Falcon" }
 router.delete(
   "/keyword",
+  [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { keyword } = req.body;
     if (!keyword) {
@@ -168,6 +184,7 @@ router.delete(
 // Add a custom regex pattern. Body: { label: "Employee ID", pattern: "EMP-\\d{6}" }
 router.post(
   "/pattern",
+  [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { label, pattern } = req.body;
     if (!label || !pattern) {
@@ -200,6 +217,7 @@ router.post(
 // Remove a custom pattern by label. Body: { label: "Employee ID" }
 router.delete(
   "/pattern",
+  [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { label } = req.body;
     if (!label) {

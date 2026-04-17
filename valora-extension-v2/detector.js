@@ -132,31 +132,43 @@ const PATTERNS = {
   },
 };
 
-// ── Main detection function ───────────────────────────────────────────────────
-/**
- * Scan `text` for sensitive data using built-in patterns + backend rules.
- *
- * @param {string} text  - Raw text from the AI chat input box
- * @returns {{ type: string, value: string }[]}
- *   Array of matches. Empty array = nothing found = safe to send.
- *
- * Deduplication: the same value is only reported once even if it appears
- * multiple times or matches multiple patterns.
- */
-function findSensitiveData(text) {
-  if (!text || typeof text !== "string") return [];
-
+function detectSensitiveData(text, rules) {
   const results = [];
+  const matches = results; // Alias for consistency with requested code snippet
+
+  if (!text || typeof text !== "string") return matches;
+  if (!rules) rules = { domains: [], keywords: [], customPatterns: [] };
+
   const seen = new Set(); // deduplicate: same value won't appear twice in output
 
-  // Helper: run one regex pattern against the text, collect non-duplicate matches
+  rules.domains.forEach(domain => {
+    if (text.includes(domain)) {
+      if (!seen.has(domain)) {
+        seen.add(domain);
+        matches.push({ type: "Domain", value: domain });
+      }
+    }
+  });
+
+  // Keyword detection (case-insensitive)
+  rules.keywords.forEach(keyword => {
+    if (text.toLowerCase().includes(keyword.toLowerCase())) {
+      if (!seen.has(keyword.toLowerCase())) {
+        seen.add(keyword.toLowerCase());
+        matches.push({ type: "Keyword", value: keyword });
+      }
+    }
+  });
+
+  // Helper: run one regex pattern
   function runPattern(patternObj) {
-    // Rebuild with same flags to reset lastIndex — critical for reuse!
     const regex = new RegExp(patternObj.regex.source, patternObj.regex.flags);
     let m;
     while ((m = regex.exec(text)) !== null) {
       const value = m[0];
-      if (!seen.has(value) && patternObj.check(value)) {
+      let isValid = patternObj.check(value);
+
+      if (!seen.has(value) && isValid) {
         seen.add(value);
         results.push({ type: patternObj.label, value });
       }
@@ -179,23 +191,9 @@ function findSensitiveData(text) {
   if (VALORA_CONFIG.enablePhoneDetection)       runPattern(PATTERNS.phone);
   if (VALORA_CONFIG.enableSSNDetection)         runPattern(PATTERNS.ssn);
 
-  // ── 2. Backend keywords (exact phrase, case-insensitive) ─────────────────
-  // These come from the DB: e.g. "Project Falcon", "Q4 salary", "merger"
-  // If any keyword appears anywhere in the text → flag it.
-  const lowerText = text.toLowerCase();
-  BACKEND_RULES.keywords.forEach((keyword) => {
-    if (!keyword || typeof keyword !== "string") return;
-    const lowerKw = keyword.toLowerCase().trim();
-    if (!lowerKw) return;
-    if (lowerText.includes(lowerKw) && !seen.has(lowerKw)) {
-      seen.add(lowerKw);
-      results.push({ type: "Sensitive keyword", value: keyword });
-    }
-  });
-
   // ── 3. Backend custom regex patterns ─────────────────────────────────────
   // These come from the DB: e.g. { label: "Employee ID", pattern: "EMP-\\d{6}" }
-  BACKEND_RULES.customPatterns.forEach(({ label, pattern }) => {
+  rules.customPatterns.forEach(({ label, pattern }) => {
     if (!pattern) return;
     try {
       const regex = new RegExp(pattern, "gi");
