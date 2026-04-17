@@ -12,7 +12,7 @@ router.get(
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     // Return everyone, exclude password field
-    const users = await User.find({}).select("-password").sort({ createdAt: -1 });
+    const users = await User.find({ orgId: req.orgId, role: 'employee' }).select("-password").sort({ createdAt: -1 });
     res.json({ success: true, users });
   })
 );
@@ -46,6 +46,7 @@ router.post(
       password: temporaryPassword, 
       role: role === "admin" ? "admin" : "employee",
       isFirstLogin: true,
+      orgId: req.orgId,
     });
 
     res.status(201).json({

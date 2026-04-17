@@ -49,6 +49,7 @@ router.post(
 
     const violation = await Violation.create({
       userId:    req.user ? req.user.id : undefined,
+      orgId:     req.orgId,
       url:       (url || "unknown").trim(),
       matches:   cleanMatches,
       timestamp: timestamp ? new Date(timestamp) : new Date(),
@@ -73,7 +74,7 @@ router.get(
     const skip  = (page - 1) * limit;
 
     // Build optional filter
-    const filter = {};
+    const filter = { orgId: req.orgId };
 
     if (req.query.from || req.query.to) {
       filter.timestamp = {};
@@ -119,6 +120,7 @@ router.get(
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const pipeline = [
+      { $match: { orgId: req.orgId } },
       // Unwind the matches array so each type becomes its own document
       { $unwind: "$matches" },
       // Group by type, count occurrences
@@ -144,7 +146,7 @@ router.get(
     stats.total = total;
 
     // Also return total violation events (not total matches)
-    stats.totalEvents = await Violation.countDocuments();
+    stats.totalEvents = await Violation.countDocuments({ orgId: req.orgId });
 
     res.json({ success: true, stats });
   })
@@ -157,7 +159,7 @@ router.delete(
   "/",
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
-    const { deletedCount } = await Violation.deleteMany({});
+    const { deletedCount } = await Violation.deleteMany({ orgId: req.orgId });
     console.log(`[Violations] Deleted all — ${deletedCount} records removed`);
     res.json({ success: true, deleted: deletedCount });
   })

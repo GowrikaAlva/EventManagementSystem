@@ -3,10 +3,11 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Rule = require("../models/Rule");
 
 // Helper to generate JWT
-const generateToken = (id, role, email) => {
-  return jwt.sign({ id, role, email }, process.env.JWT_SECRET || "valora_fallback_secret_key", {
+const generateToken = (id, role, email, orgId) => {
+  return jwt.sign({ id, role, email, orgId }, process.env.JWT_SECRET || "valora_fallback_secret_key", {
     expiresIn: "30d",
   });
 };
@@ -61,7 +62,8 @@ router.post("/set-password", async (req, res, next) => {
     
     await user.save();
 
-    const token = generateToken(user._id, user.role, user.email);
+    const orgId = user.role === 'admin' ? user._id : user.orgId;
+    const token = generateToken(user._id, user.role, user.email, orgId);
 
     res.json({
       success: true,
@@ -97,7 +99,8 @@ router.post("/login", async (req, res, next) => {
       return res.status(401).json({ success: false, error: "Invalid credentials" });
     }
 
-    const token = generateToken(user._id, user.role, user.email);
+    const orgId = user.role === 'admin' ? user._id : user.orgId;
+    const token = generateToken(user._id, user.role, user.email, orgId);
 
     res.json({
       success: true,
@@ -131,7 +134,7 @@ router.post("/admin-login", async (req, res, next) => {
       return res.status(401).json({ success: false, error: "Invalid credentials" });
     }
 
-    const token = generateToken(user._id, user.role, user.email);
+    const token = generateToken(user._id, user.role, user.email, user._id);
 
     res.json({
       success: true,
@@ -171,7 +174,9 @@ router.post("/admin-register", async (req, res, next) => {
       isFirstLogin: true,
     });
 
-    const token = generateToken(newUser._id, newUser.role, newUser.email);
+    await Rule.create({ orgId: newUser._id, domains: [], keywords: [], customPatterns: [] });
+
+    const token = generateToken(newUser._id, newUser.role, newUser.email, newUser._id);
 
     res.json({
       success: true,

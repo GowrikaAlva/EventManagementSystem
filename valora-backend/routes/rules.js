@@ -5,17 +5,10 @@ const Rule    = require("../models/Rule");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authMiddleware, adminMiddleware } = require("../middleware/authMiddleware");
 
-async function getRules() {
-  let rules = await Rule.findOne();
+async function getRules(orgId) {
+  const rules = await Rule.findOne({ orgId });
   if (!rules) {
-    rules = await Rule.create({
-      domains: ["@company.com"],
-      keywords: ["Project Falcon", "confidential", "merger"],
-      customPatterns: [
-        { label: "Employee ID", pattern: "EMP-\\d{6}", source: "company" },
-      ],
-    });
-    console.log("[Rules] Default rules document created in DB ✓");
+    throw new Error("Organization rules not found");
   }
   return rules;
 }
@@ -28,7 +21,7 @@ router.get(
   "/",
   authMiddleware,
   asyncHandler(async (req, res) => {
-    const rule = await Rule.findOne();
+    const rule = await Rule.findOne({ orgId: req.orgId });
 
     if (!rule) {
       return res.json({
@@ -64,7 +57,7 @@ router.put(
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { domains, keywords, customPatterns } = req.body;
-    const rules = await getRules();
+    const rules = await getRules(req.orgId);
 
     if (Array.isArray(domains))        rules.domains        = domains;
     if (Array.isArray(keywords))       rules.keywords       = keywords;
@@ -87,7 +80,7 @@ router.post(
     }
 
     const clean = domain.toLowerCase().trim();
-    const rules = await getRules();
+    const rules = await getRules(req.orgId);
 
     if (rules.domains.includes(clean)) {
       return res.json({ success: true, message: "Domain already exists", rules });
@@ -111,7 +104,7 @@ router.delete(
     }
 
     const clean = domain.toLowerCase().trim();
-    const rules = await getRules();
+    const rules = await getRules(req.orgId);
     rules.domains = rules.domains.filter((d) => d !== clean);
     await rules.save();
     console.log(`[Rules] Domain removed: ${clean}`);
@@ -130,7 +123,7 @@ router.post(
     }
 
     const clean = keyword.trim();
-    const rules = await getRules();
+    const rules = await getRules(req.orgId);
     const exists = rules.keywords.some((k) => k.toLowerCase() === clean.toLowerCase());
     if (exists) {
       return res.json({ success: true, message: "Keyword already exists", rules });
@@ -153,7 +146,7 @@ router.delete(
       return res.status(400).json({ success: false, error: "keyword is required" });
     }
 
-    const rules = await getRules();
+    const rules = await getRules(req.orgId);
     rules.keywords = rules.keywords.filter(
       (k) => k.toLowerCase() !== keyword.toLowerCase().trim()
     );
@@ -182,7 +175,7 @@ router.post(
       return res.status(400).json({ success: false, error: `Invalid regex: ${e.message}` });
     }
 
-    const rules = await getRules();
+    const rules = await getRules(req.orgId);
     const exists = rules.customPatterns.some((p) => p.label === label.trim());
     if (exists) {
       return res.json({ success: true, message: "Pattern label already exists", rules });
@@ -205,7 +198,7 @@ router.delete(
       return res.status(400).json({ success: false, error: "label is required" });
     }
 
-    const rules = await getRules();
+    const rules = await getRules(req.orgId);
     rules.customPatterns = rules.customPatterns.filter((p) => p.label !== label.trim());
     await rules.save();
     console.log(`[Rules] Custom pattern removed: ${label}`);
