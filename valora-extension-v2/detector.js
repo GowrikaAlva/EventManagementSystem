@@ -2,7 +2,7 @@
 // Load order: services/api.js → utils/redactor.js → detector.js → content.js
 
 const VALORA_CONFIG = {
-  companyDomains: ["@company.com", "@myorg.com"],
+  companyDomains: ["@company.com", "@myorg.com", "@gmail.com"],
   enableEmailDetection:      true,
   enableApiKeyDetection:     true,
   enableCreditCardDetection: true,

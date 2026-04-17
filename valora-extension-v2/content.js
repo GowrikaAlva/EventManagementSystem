@@ -31,6 +31,16 @@
   let sendBlocked    = false;
   let toastShown     = false;
 
+  // ── Settings defaults (kept in sync via storage listener) ─────────────────
+  const SETTINGS_DEFAULTS = {
+    enableEmailDetection:      true,
+    enableApiKeyDetection:     true,
+    enableCreditCardDetection: true,
+    enablePhoneDetection:      true,
+    enableSSNDetection:        true,
+    companyDomains:            ["@company.com"],
+  };
+
   // ── Startup ────────────────────────────────────────────────────────────────
   (async function init() {
     const { valoraToken } = await new Promise((res) =>
@@ -42,20 +52,46 @@
       return;
     }
 
-    chrome.storage.local.get(
-      {
-        enableEmailDetection:      true,
-        enableApiKeyDetection:     true,
-        enableCreditCardDetection: true,
-        enablePhoneDetection:      true,
-        enableSSNDetection:        true,
-        companyDomains:            ["@company.com"],
-      },
-      (settings) => {
-        applyStorageSettings(settings);
-        console.log("[Valora] Storage settings applied ✓");
-      }
-    );
+    // Load initial settings
+    chrome.storage.local.get(SETTINGS_DEFAULTS, (settings) => {
+      applyStorageSettings(settings);
+      console.log("[Valora] Storage settings applied ✓");
+    });
+
+    // ── KEY FIX: Listen for popup toggle changes in real time ────────────────
+    // Whenever the user flips a toggle in the popup, chrome.storage.onChanged
+    // fires here in the content script. We immediately re-apply settings AND
+    // force a re-scan of whatever text is currently in the input box.
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local") return;
+
+      const relevantKeys = [
+        "enableEmailDetection",
+        "enableApiKeyDetection",
+        "enableCreditCardDetection",
+        "enablePhoneDetection",
+        "enableSSNDetection",
+        "companyDomains",
+      ];
+
+      const hasRelevantChange = relevantKeys.some((key) => key in changes);
+      if (!hasRelevantChange) return;
+
+      // Build an updated settings object from the change set
+      const updated = {};
+      relevantKeys.forEach((key) => {
+        if (changes[key] !== undefined) {
+          updated[key] = changes[key].newValue;
+        }
+      });
+
+      applyStorageSettings(updated);
+      console.log("[Valora] Settings updated from popup:", updated);
+
+      // Force re-scan with new settings by resetting lastText
+      lastText = "";
+      scan();
+    });
 
     chrome.runtime.sendMessage(
       { type: "FETCH_RULES", token: valoraToken },
@@ -152,7 +188,7 @@
     document.body.appendChild(toast);
 
     setTimeout(() => { toast.style.opacity = "0"; }, 3000);
-    setTimeout(() => { toast.remove(); },            3400);
+    setTimeout(() => { toast.remove(); toastShown = false; }, 3400);
   }
 
   // ── Enter key interceptor ──────────────────────────────────────────────────
@@ -471,6 +507,10 @@
   }
 
   // ── Main scan loop ─────────────────────────────────────────────────────────
+  // NOTE: scan() is intentionally kept synchronous for the detection path.
+  // Settings are kept live via the chrome.storage.onChanged listener above —
+  // no need to re-read storage on every 500ms tick (which would be wasteful
+  // and introduce async race conditions with the modal/block state).
   function scan() {
     const input = getInputBox();
     if (!input) return;
