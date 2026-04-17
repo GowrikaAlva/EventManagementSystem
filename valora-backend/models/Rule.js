@@ -12,6 +12,7 @@ const CustomPatternSchema = new mongoose.Schema(
 
 const RuleSchema = new mongoose.Schema(
   {
+    orgId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     domains: {
       type:    [String],
       default: [],

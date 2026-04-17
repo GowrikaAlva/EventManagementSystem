@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import api from "../utils/api";
 import logo from "../assets/valora-logo.svg";
 
@@ -14,7 +14,7 @@ const AdminAuth = () => {
     e.preventDefault();
     try {
       setBusy(true);
-      const res = await api.post('/auth/admin', { email, password });
+      const res = await api.post('/auth/admin-login', { email, password });
       if (res.data.success && res.data.token) {
         localStorage.setItem('valoraAdminToken', res.data.token);
         navigate('/');
@@ -107,9 +107,17 @@ const AdminAuth = () => {
               {busy ? "Signing in…" : "Continue"}
             </button>
 
-            <p style={{ margin: 0, color: "rgba(234,240,255,.55)", fontSize: 12 }}>
-              By continuing you agree to your organization’s security policies.
-            </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+              <p style={{ margin: 0, color: "rgba(234,240,255,.55)", fontSize: 12 }}>
+                By continuing you agree to your organization’s security policies.
+              </p>
+            </div>
+            
+            <div style={{ marginTop: 16 }}>
+              <p style={{ margin: 0, color: "rgba(234,240,255,.55)", fontSize: 12 }}>
+                Don't have an account? <Link to="/register" style={{ color: "#25E6D9", textDecoration: "none" }}>Create an organization &rarr;</Link>
+              </p>
+            </div>
           </form>
         </section>
       </div>

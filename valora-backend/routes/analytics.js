@@ -11,7 +11,7 @@ router.get(
   "/total-leaks",
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
-    const count = await Violation.countDocuments();
+    const count = await Violation.countDocuments({ orgId: req.orgId });
     res.json({ success: true, count });
   })
 );
@@ -25,7 +25,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const pipeline = [
       // Exclude violations that might have missing userIds (if any fallback occurred)
-      { $match: { userId: { $exists: true, $ne: null } } },
+      { $match: { orgId: req.orgId, userId: { $exists: true, $ne: null } } },
       
       // Group by user id
       {

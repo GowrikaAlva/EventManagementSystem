@@ -13,6 +13,7 @@ const authMiddleware = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "valora_fallback_secret_key");
     req.user = decoded; // { id, role, email }
+    req.orgId = decoded.orgId; // add this line
     next();
   } catch (error) {
     return res.status(401).json({ success: false, error: "Not authorized. Invalid token." });

@@ -3,10 +3,11 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Rule = require("../models/Rule");
 
 // Helper to generate JWT
-const generateToken = (id, role, email) => {
-  return jwt.sign({ id, role, email }, process.env.JWT_SECRET || "valora_fallback_secret_key", {
+const generateToken = (id, role, email, orgId) => {
+  return jwt.sign({ id, role, email, orgId }, process.env.JWT_SECRET || "valora_fallback_secret_key", {
     expiresIn: "30d",
   });
 };
@@ -61,7 +62,8 @@ router.post("/set-password", async (req, res, next) => {
     
     await user.save();
 
-    const token = generateToken(user._id, user.role, user.email);
+    const orgId = user.role === 'admin' ? user._id : user.orgId;
+    const token = generateToken(user._id, user.role, user.email, orgId);
 
     res.json({
       success: true,
@@ -97,7 +99,8 @@ router.post("/login", async (req, res, next) => {
       return res.status(401).json({ success: false, error: "Invalid credentials" });
     }
 
-    const token = generateToken(user._id, user.role, user.email);
+    const orgId = user.role === 'admin' ? user._id : user.orgId;
+    const token = generateToken(user._id, user.role, user.email, orgId);
 
     res.json({
       success: true,
@@ -116,10 +119,13 @@ router.post("/admin-login", async (req, res, next) => {
   try {
     const { email, password } = req.body;
     
-    // Explicit security check to prevent normal employees from accessing via the admin endpoint
     const user = await User.findOne({ email: email.toLowerCase() });
     
-    if (!user || user.role !== "admin") {
+    if (!user) {
+      return res.status(401).json({ success: false, error: "No account found" });
+    }
+
+    if (user.role !== "admin") {
       return res.status(401).json({ success: false, error: "Not authorized as an admin" });
     }
 
@@ -128,7 +134,7 @@ router.post("/admin-login", async (req, res, next) => {
       return res.status(401).json({ success: false, error: "Invalid credentials" });
     }
 
-    const token = generateToken(user._id, user.role, user.email);
+    const token = generateToken(user._id, user.role, user.email, user._id);
 
     res.json({
       success: true,
@@ -140,10 +146,10 @@ router.post("/admin-login", async (req, res, next) => {
   }
 });
 
-// @route   POST /api/auth/admin
-// @desc    Authenticate or create new admin user & get token
+// @route   POST /api/auth/admin-register
+// @desc    Create new admin user & get token
 // @access  Public
-router.post("/admin", async (req, res, next) => {
+router.post("/admin-register", async (req, res, next) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -151,41 +157,32 @@ router.post("/admin", async (req, res, next) => {
     }
 
     const emailLower = email.toLowerCase();
-    const user = await User.findOne({ email: emailLower });
+    const existingUser = await User.findOne({ email: emailLower });
 
-    if (user) {
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(401).json({ success: false, error: "Invalid credentials" });
-      }
-
-      const token = generateToken(user._id, user.role, user.email);
-
-      return res.json({
-        success: true,
-        token,
-        user: { id: user._id, email: user.email, role: user.role }
-      });
-    } else {
-      // Create new admin
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-      
-      const newUser = await User.create({
-        email: emailLower,
-        password: hashedPassword,
-        role: "admin",
-        isFirstLogin: false,
-      });
-
-      const token = generateToken(newUser._id, newUser.role, newUser.email);
-
-      return res.json({
-        success: true,
-        token,
-        user: { id: newUser._id, email: newUser.email, role: newUser.role }
-      });
+    if (existingUser) {
+      return res.status(400).json({ success: false, error: "An account with this email already exists" });
     }
+
+    // Create new admin
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    
+    const newUser = await User.create({
+      email: emailLower,
+      password: hashedPassword,
+      role: "admin",
+      isFirstLogin: true,
+    });
+
+    await Rule.create({ orgId: newUser._id, domains: [], keywords: [], customPatterns: [] });
+
+    const token = generateToken(newUser._id, newUser.role, newUser.email, newUser._id);
+
+    res.json({
+      success: true,
+      token,
+      user: { id: newUser._id, email: newUser.email, role: newUser.role }
+    });
   } catch (err) {
     next(err);
   }

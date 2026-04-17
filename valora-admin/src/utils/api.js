@@ -13,4 +13,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+export const registerAdmin = (data) => api.post('/auth/admin-register', data);
+export const loginAdmin = (data) => api.post('/auth/admin-login', data);
+
 export default api;

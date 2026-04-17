@@ -23,6 +23,11 @@ const UserSchema = new mongoose.Schema(
       enum: ["admin", "employee"],
       default: "employee",
     },
+    orgId: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'User', 
+      required: function() { return this.role === 'employee'; } 
+    },
   },
   {
     timestamps: true,
