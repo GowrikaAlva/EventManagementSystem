@@ -63,7 +63,6 @@
       { type: "FETCH_RULES", token: valoraToken },
       (response) => {
         if (response?.success) {
-          // detector.js stores both buckets internally
           loadBackendRules({
             companyRules: response.companyRules,
             generalRules: response.generalRules,
@@ -116,7 +115,7 @@
     }
   }
 
-  // ── Masking helper ─────────────────────────────────────────────────────────
+  // ── Masking helpers ────────────────────────────────────────────────────────
   function maskValue(value) {
     if (!value || value.length <= 6) return "••••••";
     return value.slice(0, 3) + "•".repeat(Math.min(value.length - 6, 8)) + value.slice(-3);
@@ -124,12 +123,12 @@
 
   function applyMaskInField(field, originalValue) {
     const current = getText(field);
-    const masked  = originalValue.slice(0, 2) + "*".repeat(originalValue.length - 4) + originalValue.slice(-2);
+    const masked  = originalValue.slice(0, 2) + "*".repeat(Math.max(originalValue.length - 4, 2)) + originalValue.slice(-2);
     setText(field, current.split(originalValue).join(masked));
   }
 
-  // ── Company toast (shows once per page session) ────────────────────────────
-  function showCompanyToast() {
+  // ── Company toast — mentions count and policy ──────────────────────────────
+  function showCompanyToast(count) {
     if (toastShown) return;
     toastShown = true;
 
@@ -152,7 +151,7 @@
       maxWidth:     "320px",
       lineHeight:   "1.4",
     });
-    toast.textContent = "🔒 Masking sensitive info automatically (company policy)";
+    toast.textContent = `🔒 Masking ${count} sensitive item${count > 1 ? "s" : ""} per company policy`;
     document.body.appendChild(toast);
 
     setTimeout(() => { toast.style.opacity = "0"; }, 3000);
@@ -189,43 +188,160 @@
   function interceptSend(e) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    // Only pass general matches to the modal — company ones are already masked
+    // Only pass general matches to modal — company ones are already auto-masked
     const generalMatches = currentMatches.filter((m) => m.source === "general");
     if (generalMatches.length > 0) {
       showModal(generalMatches);
     }
   }
 
-  // ── Modal (general matches only — user decides) ────────────────────────────
+  // ── Modal (general matches only — user selects what to mask) ──────────────
   function showModal(matches) {
     const existing = document.getElementById("valora-modal");
     if (existing) existing.remove();
 
+    // Build checklist rows
+    const rows = matches.map((m, i) => `
+      <li style="display:flex;align-items:center;gap:10px;padding:8px 0;
+        border-bottom:0.5px solid #2a2a4a;">
+        <input type="checkbox" id="valora-chk-${i}" data-index="${i}"
+          style="width:15px;height:15px;accent-color:#7c6af7;cursor:pointer;flex-shrink:0;">
+        <label for="valora-chk-${i}"
+          style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;">
+          <span style="background:#2a1f6e;color:#a09af5;font-size:11px;font-weight:600;
+            padding:2px 8px;border-radius:4px;white-space:nowrap;flex-shrink:0;">${m.type}</span>
+          <code style="font-family:monospace;font-size:12px;color:#c8c8e0;
+            word-break:break-all;">${maskValue(m.value)}</code>
+        </label>
+      </li>`).join("");
+
     const modal = document.createElement("div");
     modal.id = "valora-modal";
+    Object.assign(modal.style, {
+      position:        "fixed",
+      inset:           "0",
+      background:      "rgba(0,0,0,0.55)",
+      zIndex:          "2147483647",
+      display:         "flex",
+      alignItems:      "center",
+      justifyContent:  "center",
+    });
+
     modal.innerHTML = `
-      <div id="valora-modal-box">
-        <div id="valora-modal-title">⚠ Sensitive data detected</div>
-        <div id="valora-modal-body">
-          <p>Your message contains ${matches.length} sensitive item${matches.length > 1 ? "s" : ""}:</p>
-          <ul id="valora-match-list">
-            ${matches.map((m) => `<li><span class="valora-modal-tag">${m.type}</span> <code>${maskValue(m.value)}</code></li>`).join("")}
-          </ul>
-          <p class="valora-modal-note">
-            <b>Send with [REDACTED]</b> replaces sensitive values before sending.
-            Your original text is never stored.
-          </p>
+      <div id="valora-modal-box" style="background:#12122a;border:1px solid #2a2a4a;
+        border-radius:12px;padding:22px 24px;width:400px;max-width:92vw;max-height:80vh;
+        overflow-y:auto;color:#e0e0f0;
+        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+
+        <div style="font-size:15px;font-weight:600;margin-bottom:4px;">
+          ⚠ Sensitive data detected
         </div>
-        <div id="valora-modal-actions">
-          <button id="valora-btn-redact">Send with [REDACTED]</button>
-          <button id="valora-btn-cancel">Cancel</button>
+        <div style="font-size:12px;color:#8888aa;margin-bottom:14px;">
+          Select items to mask inline in your message, or redact all with [REDACTED].
+        </div>
+
+        <div style="font-size:12px;color:#8888aa;margin-bottom:6px;
+          display:flex;justify-content:space-between;align-items:center;">
+          <span>${matches.length} item${matches.length > 1 ? "s" : ""} found</span>
+          <span id="valora-select-all"
+            style="color:#7c6af7;cursor:pointer;text-decoration:underline;">
+            Select all
+          </span>
+        </div>
+
+        <ul id="valora-match-list" style="list-style:none;margin:0 0 14px;padding:0;">
+          ${rows}
+        </ul>
+
+        <div style="font-size:11px;color:#666688;margin-bottom:16px;line-height:1.6;">
+          <b style="color:#9090b8;">Mask selected</b> — replaces chosen values with
+          <code style="font-size:11px;background:#1e1e3a;padding:1px 4px;
+            border-radius:3px;">***</code> inline in your message.<br>
+          <b style="color:#9090b8;">Send with [REDACTED]</b> — replaces all remaining
+          items before sending.
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="valora-btn-mask-selected"
+            style="flex:1;min-width:120px;padding:8px 12px;background:#2a1f6e;
+            color:#a09af5;border:1px solid #4a3fae;border-radius:7px;font-size:13px;
+            cursor:pointer;font-weight:500;">
+            Mask selected
+          </button>
+          <button id="valora-btn-redact"
+            style="flex:1;min-width:120px;padding:8px 12px;background:#1e1e3a;
+            color:#c0c0e0;border:1px solid #3a3a5a;border-radius:7px;font-size:13px;
+            cursor:pointer;">
+            Send with [REDACTED]
+          </button>
+          <button id="valora-btn-cancel"
+            style="padding:8px 16px;background:transparent;color:#666688;
+            border:1px solid #2a2a4a;border-radius:7px;font-size:13px;cursor:pointer;">
+            Cancel
+          </button>
         </div>
       </div>
     `;
     document.body.appendChild(modal);
 
-    document.getElementById("valora-btn-cancel").addEventListener("click", () => modal.remove());
+    // ── Select all / deselect all toggle ──────────────────────────────────
+    let allSelected = false;
+    document.getElementById("valora-select-all").addEventListener("click", () => {
+      allSelected = !allSelected;
+      modal.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+        cb.checked = allSelected;
+      });
+      document.getElementById("valora-select-all").textContent =
+        allSelected ? "Deselect all" : "Select all";
+      updateMaskBtnLabel();
+    });
 
+    // Update "Mask selected (N)" label as user checks/unchecks
+    function updateMaskBtnLabel() {
+      const count = modal.querySelectorAll("input[type=checkbox]:checked").length;
+      document.getElementById("valora-btn-mask-selected").textContent =
+        count > 0 ? `Mask selected (${count})` : "Mask selected";
+    }
+    modal.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.addEventListener("change", updateMaskBtnLabel);
+    });
+
+    // ── Mask selected ──────────────────────────────────────────────────────
+    document.getElementById("valora-btn-mask-selected").addEventListener("click", () => {
+      const input   = getInputBox();
+      const checked = [...modal.querySelectorAll("input[type=checkbox]:checked")]
+        .map((cb) => parseInt(cb.dataset.index));
+
+      if (checked.length === 0) {
+        const btn = document.getElementById("valora-btn-mask-selected");
+        btn.textContent = "Select at least one";
+        setTimeout(() => { btn.textContent = "Mask selected"; }, 1500);
+        return;
+      }
+
+      // Apply inline masking for each checked item
+      checked.forEach((i) => {
+        if (input) applyMaskInField(input, matches[i].value);
+      });
+
+      // Determine what remains unmasked
+      const remaining = matches.filter((_, i) => !checked.includes(i));
+
+      if (remaining.length === 0) {
+        // Nothing left — close modal and unblock
+        modal.remove();
+        unblockSendButton();
+        hideWarning();
+        currentMatches = [];
+      } else {
+        // Rebuild modal with only remaining items so user can decide on them
+        currentMatches = remaining;
+        modal.remove();
+        showModal(remaining);
+      }
+    });
+
+    // ── Send with [REDACTED] — redact all remaining general matches ────────
     document.getElementById("valora-btn-redact").addEventListener("click", async () => {
       const input = getInputBox();
       if (input) {
@@ -234,9 +350,6 @@
         setText(input, redacted);
       }
 
-      const { valoraToken } = await new Promise((res) =>
-        chrome.storage.local.get(["valoraToken"], res)
-      );
       await logViolation(matches, window.location.href); // services/api.js
 
       modal.remove();
@@ -251,7 +364,15 @@
       }, 80);
     });
 
-    modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+    // ── Cancel ─────────────────────────────────────────────────────────────
+    document.getElementById("valora-btn-cancel").addEventListener("click", () => {
+      modal.remove();
+    });
+
+    // Close on backdrop click
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.remove();
+    });
   }
 
   // ── Warning banner ─────────────────────────────────────────────────────────
@@ -328,7 +449,7 @@
       return;
     }
 
-    // detector.js — now returns [{ type, value, source }]
+    // detector.js — returns [{ type, value, source }]
     const matches = detectSensitiveData(text);
     currentMatches = matches;
 
@@ -341,13 +462,13 @@
     const companyMatches = matches.filter((m) => m.source === "company");
     const generalMatches = matches.filter((m) => m.source === "general");
 
-    // ── Company matches: auto-mask immediately + show toast ────────────────
+    // ── Company matches: auto-mask immediately + show toast with count ─────
     if (companyMatches.length) {
       companyMatches.forEach((m) => applyMaskInField(input, m.value));
-      showCompanyToast();
+      showCompanyToast(companyMatches.length);
 
-      // After masking, remove company matches from currentMatches
-      // so interceptSend only sees general ones
+      // Remove company matches from currentMatches so interceptSend only
+      // sees general ones
       currentMatches = generalMatches;
     }
 
@@ -356,7 +477,7 @@
       showWarning(generalMatches);
       blockSendButton();
     } else {
-      // No general matches left (only company, now auto-masked)
+      // No general matches left — company ones are already auto-masked
       hideWarning();
       unblockSendButton();
     }
