@@ -25,6 +25,7 @@ const MatchTypeSchema = new mongoose.Schema(
 
 const ViolationSchema = new mongoose.Schema(
   {
+    orgId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     // User who generated the violation
     userId: {
       type: mongoose.Schema.Types.ObjectId,
