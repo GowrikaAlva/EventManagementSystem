@@ -62,7 +62,7 @@ function applyStorageSettings(settings) {
   }
 }
 
-// ── Built-in patterns (always "general" source — user controls these) ─────────
+// ── Built-in patterns ─────────────────────────────────────────────────────────
 const PATTERNS = {
   companyEmail: {
     regex: /\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b/gi,
@@ -136,9 +136,20 @@ function detectSensitiveData(text) {
   // ── 1. Company rules from backend (source = "company") ────────────────────
   const cr = BACKEND_RULES.companyRules;
 
-  // Domains — check if any company domain string appears verbatim in text
+  // ── FIX: Extract full emails containing the company domain ────────────────
+  // Previously this pushed just "@company.com" as the value, so the general
+  // email pass later found "john@company.com" (a different string) and also
+  // fired. Now we extract the full email so `seen` blocks it correctly.
   cr.domains.forEach((domain) => {
-    if (text.includes(domain)) push("Domain", domain, "company");
+    const escapedDomain = domain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const emailRegex = new RegExp(
+      `[A-Z0-9._%+\\-]+${escapedDomain}`,
+      "gi"
+    );
+    let m;
+    while ((m = emailRegex.exec(text)) !== null) {
+      push("Company email", m[0], "company");
+    }
   });
 
   // Keywords — case-insensitive substring match
@@ -163,6 +174,8 @@ function detectSensitiveData(text) {
   });
 
   // ── 2. Built-in patterns (source = "general") ─────────────────────────────
+  // Because `seen` already contains any full emails matched as company above,
+  // the email regex below will skip them automatically via push()'s seen check.
   if (VALORA_CONFIG.enableEmailDetection) {
     VALORA_CONFIG.companyDomains.length > 0
       ? runPattern(PATTERNS.companyEmail, "general")

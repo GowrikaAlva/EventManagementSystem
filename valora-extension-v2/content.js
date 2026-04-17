@@ -536,8 +536,12 @@
     }
 
     const companyMatches = matches.filter((m) => m.source === "company");
-    const generalMatches = matches.filter((m) => m.source === "general");
 
+// Exclude any general match whose value is already covered by a company rule
+const companyValues  = new Set(companyMatches.map((m) => m.value));
+const generalMatches = matches.filter(
+  (m) => m.source === "general" && !companyValues.has(m.value)
+);
     if (companyMatches.length) {
       companyMatches.forEach((m) => applyMaskInField(input, m.value));
       showCompanyToast(companyMatches.length);
