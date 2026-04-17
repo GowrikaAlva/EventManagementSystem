@@ -1,11 +1,11 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import AdminAuth from './pages/AdminAuth';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
 import Rules from './pages/Rules';
+import AppShell from "./components/layout/AppShell";
 
-// Simple Layout wrapper
 const Layout = ({ children }) => {
   const navigate = useNavigate();
   const handleLogout = () => {
@@ -14,20 +14,7 @@ const Layout = ({ children }) => {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
-      <div style={{ width: '250px', background: '#1a1a1a', color: '#fff', padding: '20px', display: 'flex', flexDirection: 'column' }}>
-        <h2 style={{ marginBottom: '30px', color: '#f56565' }}>Valora Admin</h2>
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '15px', flexGrow: 1 }}>
-          <Link to="/" style={{ color: '#ccc', textDecoration: 'none' }}>Dashboard</Link>
-          <Link to="/employees" style={{ color: '#ccc', textDecoration: 'none' }}>Employees</Link>
-          <Link to="/rules" style={{ color: '#ccc', textDecoration: 'none' }}>Rules</Link>
-        </nav>
-        <button onClick={handleLogout} style={{ padding: '10px', background: 'transparent', color: '#fff', border: '1px solid #4a5568', cursor: 'pointer' }}>Logout</button>
-      </div>
-      <div style={{ flexGrow: 1, padding: '30px', background: '#f7fafc', overflowY: 'auto' }}>
-        {children}
-      </div>
-    </div>
+    <AppShell onLogout={handleLogout}>{children}</AppShell>
   );
 };
 

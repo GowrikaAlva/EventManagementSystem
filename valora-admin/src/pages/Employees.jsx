@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import api from '../utils/api';
+import React, { useEffect, useState } from "react";
+import api from "../utils/api";
 
 const Employees = () => {
   const [users, setUsers] = useState([]);
@@ -7,6 +7,7 @@ const Employees = () => {
   const [newRole, setNewRole] = useState('employee');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const fetchUsers = async () => {
     try {
@@ -14,6 +15,8 @@ const Employees = () => {
       if(res.data.success) setUsers(res.data.users);
     } catch(err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -38,62 +41,94 @@ const Employees = () => {
   };
 
   return (
-    <div>
-      <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px' }}>Manage Employees</h1>
-      
-      <div style={{ background: '#fff', borderRadius: '8px', padding: '25px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', marginBottom: '30px' }}>
-        <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>Add New User</h3>
-        {error && <div style={{ color: '#e53e3e', marginBottom: '10px', fontSize: '14px' }}>{error}</div>}
-        {success && <div style={{ color: '#38a169', marginBottom: '10px', fontSize: '14px' }}>{success}</div>}
-        
-        <form onSubmit={handleAddEmployee} style={{ display: 'flex', gap: '15px', alignItems: 'end' }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ display: 'block', fontSize: '13px', color: '#4a5568', marginBottom: '5px' }}>Email Address</label>
-            <input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} required style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '4px' }} placeholder="jane@company.com" />
-          </div>
-          <div style={{ width: '150px' }}>
-            <label style={{ display: 'block', fontSize: '13px', color: '#4a5568', marginBottom: '5px' }}>Role</label>
-            <select value={newRole} onChange={e=>setNewRole(e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e0', borderRadius: '4px', background: '#fff' }}>
-              <option value="employee">Employee</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          <button type="submit" style={{ padding: '10px 20px', background: '#48bb78', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', height: '42px' }}>
-            Add User
-          </button>
-        </form>
-      </div>
+    <div className="grid" style={{ gap: 14 }}>
+      <section className="card">
+        <div className="card__head">
+          <p className="card__title">Provision access</p>
+        </div>
+        <div className="card__body">
+          {error && <div className="toast toast--err" style={{ marginBottom: 12 }}>{error}</div>}
+          {success && <div className="toast toast--ok" style={{ marginBottom: 12 }}>{success}</div>}
 
-      <div style={{ background: '#fff', borderRadius: '8px', padding: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <h3 style={{ fontSize: '16px', marginBottom: '15px' }}>Registered Users</h3>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-          <thead>
-            <tr style={{ background: '#edf2f7', textAlign: 'left' }}>
-              <th style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0' }}>Email</th>
-              <th style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0' }}>Role</th>
-              <th style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0' }}>Status</th>
-              <th style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0' }}>Added Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(user => (
-              <tr key={user._id}>
-                <td style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0' }}>{user.email}</td>
-                <td style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0' }}>
-                  <span style={{ background: user.role === 'admin' ? '#ebf8ff' : '#f0fff4', color: user.role === 'admin' ? '#3182ce' : '#38a169', padding: '4px 8px', borderRadius: '12px', fontSize: '12px' }}>
-                    {user.role}
-                  </span>
-                </td>
-                <td style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0' }}>
-                  {user.isFirstLogin === true ? "Pending Setup" : "Active"}
-                </td>
-                <td style={{ padding: '12px 15px', borderBottom: '1px solid #e2e8f0' }}>{new Date(user.createdAt).toLocaleDateString()}</td>
+          <form onSubmit={handleAddEmployee} className="stack">
+            <div className="field">
+              <div className="label">Email address</div>
+              <input
+                className="input"
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                required
+                placeholder="jane@company.com"
+              />
+            </div>
+
+            <div className="field" style={{ flex: "0 0 180px" }}>
+              <div className="label">Role</div>
+              <select className="select" value={newRole} onChange={(e) => setNewRole(e.target.value)}>
+                <option value="employee">Employee</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+
+            <div style={{ flex: "0 0 140px" }}>
+              <button className="btn btn--primary" type="submit">
+                Add user
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="card__head">
+          <p className="card__title">Directory</p>
+        </div>
+        <div className="card__body">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Added</th>
               </tr>
-            ))}
-            {users.length === 0 && <tr><td colSpan="4" style={{ padding: '15px', textAlign: 'center' }}>No users found</td></tr>}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+                <tr key={user._id}>
+                  <td>{user.email}</td>
+                  <td>
+                    <span className={`badge ${user.role === "admin" ? "badge--admin" : "badge--employee"}`}>
+                      {user.role}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge ${user.isFirstLogin === true ? "badge--pending" : "badge--active"}`}>
+                      {user.isFirstLogin === true ? "Pending setup" : "Active"}
+                    </span>
+                  </td>
+                  <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+              {!loading && users.length === 0 && (
+                <tr>
+                  <td colSpan={4} style={{ color: "rgba(234,240,255,.65)" }}>
+                    No users found
+                  </td>
+                </tr>
+              )}
+              {loading && (
+                <tr>
+                  <td colSpan={4} style={{ color: "rgba(234,240,255,.65)" }}>
+                    Loading…
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 };

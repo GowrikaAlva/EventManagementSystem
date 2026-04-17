@@ -1,0 +1,43 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gMetal" x1="44" y1="30" x2="212" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B414A"/>
+      <stop offset="0.35" stop-color="#0F1218"/>
+      <stop offset="0.7" stop-color="#232A34"/>
+      <stop offset="1" stop-color="#0B0E13"/>
+    </linearGradient>
+    <linearGradient id="gEdge" x1="60" y1="40" x2="196" y2="218" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#AAB3BF" stop-opacity="0.9"/>
+      <stop offset="0.4" stop-color="#2F3642" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#0B0E13" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="gNeon" x1="84" y1="76" x2="172" y2="190" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7CF3FF"/>
+      <stop offset="0.55" stop-color="#25E6D9"/>
+      <stop offset="1" stop-color="#00C7F6"/>
+    </linearGradient>
+    <filter id="fGlow" x="-40%" y="-40%" width="180%" height="180%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feColorMatrix
+        in="blur"
+        type="matrix"
+        values="0 0 0 0 0.15  0 0 0 0 0.92  0 0 0 0 0.86  0 0 0 1 0"
+        result="glow"
+      />
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <path d="M128 18L226 60V142C226 190 191 224 128 242C65 224 30 190 30 142V60L128 18Z" fill="url(#gMetal)"/>
+  <path d="M128 32L212 68V140C212 180 183 209 128 224C73 209 44 180 44 140V68L128 32Z" fill="none" stroke="url(#gEdge)" stroke-width="6" opacity="0.85"/>
+  <path d="M128 46L190 76V136C190 164 171 185 128 196C85 185 66 164 66 136V76L128 46Z" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.06)"/>
+  <path d="M128 52L176 78V134C176 156 160 172 128 180C96 172 80 156 80 134V78L128 52Z" fill="rgba(0,0,0,0.16)"/>
+
+  <g filter="url(#fGlow)">
+    <path d="M92 86L128 166L164 86" stroke="url(#gNeon)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M108 86L128 140L148 86" stroke="rgba(255,255,255,0.25)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

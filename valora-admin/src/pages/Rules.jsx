@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import api from '../utils/api';
+import React, { useEffect, useState } from "react";
+import api from "../utils/api";
 
 const Rules = () => {
   const [rules, setRules] = useState({ domains: [], keywords: [], customPatterns: [] });
   const [newDomain, setNewDomain] = useState('');
   const [newKeyword, setNewKeyword] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const fetchRules = async () => {
     try {
@@ -26,79 +27,156 @@ const Rules = () => {
   const handleAddDomain = async (e) => {
     e.preventDefault();
     try {
+      setBusy(true);
       await api.post('/rules/domain', { domain: newDomain });
       setNewDomain('');
       fetchRules();
     } catch(err) {}
+    finally { setBusy(false); }
   };
 
   const handleRemoveDomain = async (domain) => {
     try {
+      setBusy(true);
       await api.delete('/rules/domain', { data: { domain } });
       fetchRules();
     } catch(err) {}
+    finally { setBusy(false); }
   };
 
   const handleAddKeyword = async (e) => {
     e.preventDefault();
     try {
+      setBusy(true);
       await api.post('/rules/keyword', { keyword: newKeyword });
       setNewKeyword('');
       fetchRules();
     } catch(err) {}
+    finally { setBusy(false); }
   };
 
   const handleRemoveKeyword = async (keyword) => {
     try {
+      setBusy(true);
       await api.delete('/rules/keyword', { data: { keyword } });
       fetchRules();
     } catch(err) {}
+    finally { setBusy(false); }
   };
 
   return (
-    <div>
-      <h1 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px' }}>Detection Rules</h1>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
-        
-        {/* DOMAINS */}
-        <div style={{ background: '#fff', borderRadius: '8px', padding: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ fontSize: '18px', marginBottom: '15px' }}>Protected Domains</h3>
-          
-          <form onSubmit={handleAddDomain} style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-            <input type="text" value={newDomain} onChange={e=>setNewDomain(e.target.value)} placeholder="@company.com" style={{ flex: 1, padding: '8px', border: '1px solid #cbd5e0', borderRadius: '4px' }} required />
-            <button type="submit" style={{ padding: '8px 15px', background: '#3182ce', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Add</button>
+    <div className="grid grid--2">
+      <section className="card">
+        <div className="card__head">
+          <p className="card__title">Protected domains</p>
+        </div>
+        <div className="card__body">
+          <form onSubmit={handleAddDomain} className="stack" style={{ alignItems: "flex-end" }}>
+            <div className="field">
+              <div className="label">Domain pattern</div>
+              <input
+                className="input"
+                type="text"
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                placeholder="@company.com"
+                required
+              />
+            </div>
+            <div style={{ flex: "0 0 140px" }}>
+              <button className="btn btn--primary" type="submit" disabled={busy}>
+                Add domain
+              </button>
+            </div>
           </form>
 
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {rules.domains.map((d, i) => (
-              <li key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid #edf2f7' }}>
-                <span>{d}</span>
-                <button onClick={() => handleRemoveDomain(d)} style={{ background: 'none', border: 'none', color: '#e53e3e', cursor: 'pointer', fontSize: '12px' }}>Remove</button>
-              </li>
-            ))}
-          </ul>
+          <div style={{ marginTop: 12 }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Domain</th>
+                  <th style={{ width: 120 }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rules.domains.map((d, i) => (
+                  <tr key={i}>
+                    <td>{d}</td>
+                    <td>
+                      <button className="btn btn--danger" type="button" onClick={() => handleRemoveDomain(d)} disabled={busy}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {rules.domains.length === 0 && (
+                  <tr>
+                    <td colSpan={2} style={{ color: "rgba(234,240,255,.65)" }}>
+                      No domains configured
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+      </section>
 
-        {/* KEYWORDS */}
-        <div style={{ background: '#fff', borderRadius: '8px', padding: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-          <h3 style={{ fontSize: '18px', marginBottom: '15px' }}>Secret Keywords</h3>
-          
-          <form onSubmit={handleAddKeyword} style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-            <input type="text" value={newKeyword} onChange={e=>setNewKeyword(e.target.value)} placeholder="Project Falcon" style={{ flex: 1, padding: '8px', border: '1px solid #cbd5e0', borderRadius: '4px' }} required />
-            <button type="submit" style={{ padding: '8px 15px', background: '#3182ce', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Add</button>
+      <section className="card">
+        <div className="card__head">
+          <p className="card__title">Secret keywords</p>
+        </div>
+        <div className="card__body">
+          <form onSubmit={handleAddKeyword} className="stack" style={{ alignItems: "flex-end" }}>
+            <div className="field">
+              <div className="label">Keyword</div>
+              <input
+                className="input"
+                type="text"
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                placeholder="Project Falcon"
+                required
+              />
+            </div>
+            <div style={{ flex: "0 0 140px" }}>
+              <button className="btn btn--primary" type="submit" disabled={busy}>
+                Add keyword
+              </button>
+            </div>
           </form>
 
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {rules.keywords.map((k, i) => (
-              <li key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid #edf2f7' }}>
-                <span>{k}</span>
-                <button onClick={() => handleRemoveKeyword(k)} style={{ background: 'none', border: 'none', color: '#e53e3e', cursor: 'pointer', fontSize: '12px' }}>Remove</button>
-              </li>
-            ))}
-          </ul>
+          <div style={{ marginTop: 12 }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Keyword</th>
+                  <th style={{ width: 120 }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rules.keywords.map((k, i) => (
+                  <tr key={i}>
+                    <td>{k}</td>
+                    <td>
+                      <button className="btn btn--danger" type="button" onClick={() => handleRemoveKeyword(k)} disabled={busy}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {rules.keywords.length === 0 && (
+                  <tr>
+                    <td colSpan={2} style={{ color: "rgba(234,240,255,.65)" }}>
+                      No keywords configured
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };
