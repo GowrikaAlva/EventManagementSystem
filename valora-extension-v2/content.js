@@ -1,102 +1,48 @@
-// ─── Valora Content Script ───────────────────────────────────────────────────
-// This file is injected into every matching AI site (ChatGPT, Gemini, etc.)
-//
-// What it does, in order:
-//   1. Reads popup settings from chrome.storage
-//   2. Fetches company rules from the backend (services/api.js)
-//   3. Every 500ms: scans the chat input for sensitive data (detector.js)
-//   4. If found: shows a red warning banner
-//   5. If found: dims the send button and intercepts clicks
-//   6. When send is clicked: shows a modal with "Send with [REDACTED]" / "Cancel"
-//   7. If user clicks redact: rewrites input, logs violation to backend, sends
-//
-// Load order guaranteed by manifest.json:
-//   services/api.js  →  utils/redactor.js  →  detector.js  →  content.js
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ─── Valora Content Script ────────────────────────────────────────────────────
+// Load order: services/api.js → utils/redactor.js → detector.js → content.js
 (function () {
   "use strict";
 
   if (window.location.protocol === "chrome:" || window.location.href.startsWith("chrome://")) {
-    console.warn("Skipping Valora on chrome internal pages");
+    console.warn("[Valora] Skipping chrome internal page");
     return;
   }
-  
-  console.log("Running Valora on:", window.location.href);
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // 1. SELECTORS
+  console.log("[Valora] Running on:", window.location.href);
 
-
-  // Tried in order — first match wins.
-  // We check the specific ChatGPT ID first, then generic contenteditable,
-  // then fall back to textarea for older/simpler sites.
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Selectors ──────────────────────────────────────────────────────────────
   const INPUT_SELECTORS = [
-    "#prompt-textarea",               // ChatGPT (primary, most reliable)
-    "div[contenteditable='true']",    // Gemini, Claude, Copilot
-    "textarea",                       // legacy fallback
+    "#prompt-textarea",
+    "div[contenteditable='true']",
+    "textarea",
   ];
-
-  // Send button selectors for each AI site.
-  // ChatGPT's button has a data-testid; others use aria-label or type=submit.
   const SEND_BUTTON_SELECTORS = [
-    "button[data-testid='send-button']",        // ChatGPT
-    "button[aria-label='Send message']",        // Gemini
-    "button[aria-label='Send Message']",        // Claude
-    "button[aria-label='Submit message']",      // Copilot
-    "button[type='submit']",                    // generic fallback
+    "button[data-testid='send-button']",
+    "button[aria-label='Send message']",
+    "button[aria-label='Send Message']",
+    "button[aria-label='Submit message']",
+    "button[type='submit']",
   ];
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // 2. STATE
-  // ─────────────────────────────────────────────────────────────────────────
-  let lastText      = "";        // last scanned text — skip if unchanged
-  let warningVisible = false;    // is the red banner visible?
-  let currentMatches = [];       // last set of matches found by findSensitiveData
-  let sendBlocked    = false;    // is the send button currently blocked?
+  // ── State ──────────────────────────────────────────────────────────────────
+  let lastText       = "";
+  let warningVisible = false;
+  let currentMatches = [];        // ALL matches (company + general)
+  let sendBlocked    = false;
+  let toastShown     = false;     // show company toast only once per page load
 
-  let localRules = {
-    domains: [],
-    keywords: [],
-    customPatterns: []
-  };
-
-  let companyRules = {
-    domains: [],
-    keywords: [],
-    customPatterns: []
-  };
-
-  async function initRules() {
-    if (!window.location.href.startsWith("http")) {
-      console.warn("Invalid page for API call");
-      return;
-    }
-
-    const rules = await fetchCompanyRules();
-    console.log("Fetched rules:", rules);
-
-    // Fallback if backend empty
-    if (!rules.domains.length && !rules.keywords.length && !rules.customPatterns.length) {
-      console.warn("Using local fallback rules");
-      return;
-    }
-
-    companyRules = rules;
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // 3. STARTUP — load settings + fetch backend rules
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Startup ────────────────────────────────────────────────────────────────
   (async function init() {
-    const { valoraToken } = await new Promise((req) => chrome.storage.local.get(["valoraToken"], req));
+    const { valoraToken } = await new Promise((res) =>
+      chrome.storage.local.get(["valoraToken"], res)
+    );
+
     if (!valoraToken) {
-      console.warn("[Valora] User not logged in. Extension detection halted. Please login via the popup.");
+      console.warn("[Valora] Not logged in — detection halted.");
       return;
     }
 
-    // 3a. Load user's popup toggle settings from chrome.storage
+    // Load popup toggle settings
     chrome.storage.local.get(
       {
         enableEmailDetection:      true,
@@ -107,22 +53,34 @@
         companyDomains:            ["@company.com"],
       },
       (settings) => {
-        applyStorageSettings(settings); // defined in detector.js
-        if (settings.companyDomains) {
-          localRules.domains = settings.companyDomains;
-        }
+        applyStorageSettings(settings); // detector.js
         console.log("[Valora] Storage settings applied ✓");
       }
     );
 
-    // 3b. Fetch company-specific rules from the backend
-    await initRules();
+    // Fetch company + general rules from backend via background.js
+    chrome.runtime.sendMessage(
+      { type: "FETCH_RULES", token: valoraToken },
+      (response) => {
+        if (response?.success) {
+          // detector.js stores both buckets internally
+          loadBackendRules({
+            companyRules: response.companyRules,
+            generalRules: response.generalRules,
+          });
+        } else {
+          console.warn("[Valora] Could not load backend rules — using local fallback.");
+        }
+      }
+    );
+
+    // Start scan loop
+    setInterval(scan, 500);
+    document.addEventListener("input", scan, { passive: true });
+    console.log("[Valora] v2 content script loaded ✓");
   })();
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // 4. DOM HELPERS
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ── DOM helpers ────────────────────────────────────────────────────────────
   function getInputBox() {
     for (const sel of INPUT_SELECTORS) {
       const el = document.querySelector(sel);
@@ -139,51 +97,76 @@
     return null;
   }
 
-  // Read text from any input type: <textarea> uses .value, contenteditable uses .innerText
   function getText(el) {
     if (!el) return "";
-    return (el.value !== undefined && el.value !== null)
-      ? el.value
-      : (el.innerText || "");
+    return el.value !== undefined && el.value !== null ? el.value : (el.innerText || "");
   }
 
-  // Write text back into any input type
   function setText(el, text) {
     if (!el) return;
     if (el.value !== undefined && el.value !== null) {
-      // Native textarea / input — fire events so React picks up the change
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLTextAreaElement.prototype, "value"
-      )?.set || Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype, "value"
-      )?.set;
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(el, text);
-      } else {
-        el.value = text;
-      }
+      const setter =
+        Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set ||
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,    "value")?.set;
+      setter ? setter.call(el, text) : (el.value = text);
       el.dispatchEvent(new Event("input", { bubbles: true }));
     } else {
-      // contenteditable div — set innerText and fire input event
       el.innerText = text;
       el.dispatchEvent(new InputEvent("input", { bubbles: true }));
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // 5. SEND BUTTON BLOCKING
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Masking helper ─────────────────────────────────────────────────────────
+  function maskValue(value) {
+    if (!value || value.length <= 6) return "••••••";
+    return value.slice(0, 3) + "•".repeat(Math.min(value.length - 6, 8)) + value.slice(-3);
+  }
 
+  function applyMaskInField(field, originalValue) {
+    const current = getText(field);
+    const masked  = originalValue.slice(0, 2) + "*".repeat(originalValue.length - 4) + originalValue.slice(-2);
+    setText(field, current.split(originalValue).join(masked));
+  }
+
+  // ── Company toast (shows once per page session) ────────────────────────────
+  function showCompanyToast() {
+    if (toastShown) return;
+    toastShown = true;
+
+    const toast = document.createElement("div");
+    toast.id = "valora-toast";
+    Object.assign(toast.style, {
+      position:     "fixed",
+      bottom:       "24px",
+      right:        "24px",
+      background:   "#1a1a2e",
+      color:        "#e0e0e0",
+      padding:      "10px 18px",
+      borderRadius: "8px",
+      fontSize:     "13px",
+      zIndex:       "2147483647",
+      boxShadow:    "0 4px 20px rgba(0,0,0,0.45)",
+      transition:   "opacity 0.4s ease",
+      opacity:      "1",
+      fontFamily:   "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+      maxWidth:     "320px",
+      lineHeight:   "1.4",
+    });
+    toast.textContent = "🔒 Masking sensitive info automatically (company policy)";
+    document.body.appendChild(toast);
+
+    setTimeout(() => { toast.style.opacity = "0"; }, 3000);
+    setTimeout(() => { toast.remove(); },            3400);
+  }
+
+  // ── Send button blocking ───────────────────────────────────────────────────
   function blockSendButton() {
     if (sendBlocked) return;
     const btn = getSendButton();
     if (!btn) return;
-
     sendBlocked = true;
-    btn.dataset.valoraBlocked = "true";
-    btn.dataset.valoraOrigTitle = btn.title || "";
-
-    // Intercept at capture phase so we run before ChatGPT's own handler
+    btn.dataset.valoraBlocked    = "true";
+    btn.dataset.valoraOrigTitle  = btn.title || "";
     btn.addEventListener("click", interceptSend, { capture: true });
     btn.style.opacity = "0.45";
     btn.style.cursor  = "not-allowed";
@@ -193,11 +176,7 @@
   function unblockSendButton() {
     if (!sendBlocked) return;
     const btn = getSendButton();
-    if (!btn) {
-      sendBlocked = false;
-      return;
-    }
-
+    if (!btn) { sendBlocked = false; return; }
     btn.removeEventListener("click", interceptSend, { capture: true });
     btn.style.opacity = "";
     btn.style.cursor  = "";
@@ -207,38 +186,34 @@
     sendBlocked = false;
   }
 
-  // Called when user clicks the (blocked) send button
   function interceptSend(e) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    showModal(currentMatches);
+    // Only pass general matches to the modal — company ones are already masked
+    const generalMatches = currentMatches.filter((m) => m.source === "general");
+    if (generalMatches.length > 0) {
+      showModal(generalMatches);
+    }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // 6. MODAL — shown when send is intercepted
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ── Modal (general matches only — user decides) ────────────────────────────
   function showModal(matches) {
-    // Remove existing modal if any
     const existing = document.getElementById("valora-modal");
     if (existing) existing.remove();
 
     const modal = document.createElement("div");
     modal.id = "valora-modal";
-
     modal.innerHTML = `
       <div id="valora-modal-box">
         <div id="valora-modal-title">⚠ Sensitive data detected</div>
         <div id="valora-modal-body">
           <p>Your message contains ${matches.length} sensitive item${matches.length > 1 ? "s" : ""}:</p>
           <ul id="valora-match-list">
-            ${matches
-              .map((m) => `<li><span class="valora-modal-tag">${m.type}</span></li>`)
-              .join("")}
+            ${matches.map((m) => `<li><span class="valora-modal-tag">${m.type}</span> <code>${maskValue(m.value)}</code></li>`).join("")}
           </ul>
           <p class="valora-modal-note">
-            Choosing <b>Send with [REDACTED]</b> will replace the sensitive values
-            before sending. The original text is never sent or stored.
+            <b>Send with [REDACTED]</b> replaces sensitive values before sending.
+            Your original text is never stored.
           </p>
         </div>
         <div id="valora-modal-actions">
@@ -247,55 +222,42 @@
         </div>
       </div>
     `;
-
     document.body.appendChild(modal);
 
-    // Cancel — close modal, leave input unchanged, keep send button blocked
-    document.getElementById("valora-btn-cancel").addEventListener("click", () => {
-      modal.remove();
-    });
+    document.getElementById("valora-btn-cancel").addEventListener("click", () => modal.remove());
 
-    // Redact — rewrite input, log violation, unblock send, close modal
     document.getElementById("valora-btn-redact").addEventListener("click", async () => {
       const input = getInputBox();
       if (input) {
         const original = getText(input);
-        // redactText() is defined in utils/redactor.js
-        const redacted = redactText(original, matches);
+        const redacted = redactText(original, matches); // utils/redactor.js
         setText(input, redacted);
       }
 
-      // Log violation type (no raw values) to backend
-      // logViolation() is defined in services/api.js
-      await logViolation(matches, window.location.href);
+      const { valoraToken } = await new Promise((res) =>
+        chrome.storage.local.get(["valoraToken"], res)
+      );
+      await logViolation(matches, window.location.href); // services/api.js
 
       modal.remove();
       unblockSendButton();
       hideWarning();
-      lastText = "";        // reset so scanner re-evaluates the redacted text
+      lastText       = "";
       currentMatches = [];
 
-      // Small delay then simulate a click on send so the message actually sends
       setTimeout(() => {
         const btn = getSendButton();
         if (btn) btn.click();
       }, 80);
     });
 
-    // Close modal when clicking the dark backdrop outside the box
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.remove();
-    });
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // 7. WARNING BANNER
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ── Warning banner ─────────────────────────────────────────────────────────
   function showWarning(matches) {
     let banner = document.getElementById("valora-warning");
 
-    // Create banner once
     if (!banner) {
       banner = document.createElement("div");
       banner.id = "valora-warning";
@@ -322,22 +284,17 @@
       document.body.appendChild(banner);
     }
 
-    // Update content
-    const body = document.getElementById("valora-body");
-    body.innerHTML = `
+    document.getElementById("valora-body").innerHTML = `
       <div class="valora-title">
         ${matches.length} sensitive item${matches.length > 1 ? "s" : ""} detected
       </div>
       <ul class="valora-list">
-        ${matches
-          .map(
-            (m) =>
-              `<li>
-                <span class="valora-tag">${m.type}</span>
-                <code>${maskValue(m.value)}</code>
-              </li>`
-          )
-          .join("")}
+        ${matches.map((m) => `
+          <li>
+            <span class="valora-tag ${m.source === "company" ? "valora-tag-company" : ""}">${m.type}</span>
+            <code>${maskValue(m.value)}</code>
+            ${m.source === "company" ? '<span class="valora-auto-label">auto-masked</span>' : ""}
+          </li>`).join("")}
       </ul>
     `;
 
@@ -355,26 +312,12 @@
     }
   }
 
-  // Show only first 3 + dots + last 3 characters — never show full value in UI
-  function maskValue(value) {
-    if (!value || value.length <= 6) return "••••••";
-    const head = value.slice(0, 3);
-    const tail = value.slice(-3);
-    const dots = "•".repeat(Math.min(value.length - 6, 8));
-    return `${head}${dots}${tail}`;
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // 8. SCAN LOOP
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ── Main scan loop ─────────────────────────────────────────────────────────
   function scan() {
     const input = getInputBox();
     if (!input) return;
 
     const text = getText(input);
-
-    // Skip if nothing changed since last scan
     if (text === lastText) return;
     lastText = text;
 
@@ -385,32 +328,37 @@
       return;
     }
 
-    const finalRules = {
-      domains: [...localRules.domains, ...companyRules.domains],
-      keywords: [...localRules.keywords, ...companyRules.keywords],
-      customPatterns: [...localRules.customPatterns, ...companyRules.customPatterns]
-    };
-
-    console.log("Final Rules:", finalRules);
-    console.log("Text:", text);
-
-    const matches = detectSensitiveData(text, finalRules);
+    // detector.js — now returns [{ type, value, source }]
+    const matches = detectSensitiveData(text);
     currentMatches = matches;
 
-    if (matches.length > 0) {
-      showWarning(matches);
+    if (!matches.length) {
+      hideWarning();
+      unblockSendButton();
+      return;
+    }
+
+    const companyMatches = matches.filter((m) => m.source === "company");
+    const generalMatches = matches.filter((m) => m.source === "general");
+
+    // ── Company matches: auto-mask immediately + show toast ────────────────
+    if (companyMatches.length) {
+      companyMatches.forEach((m) => applyMaskInField(input, m.value));
+      showCompanyToast();
+
+      // After masking, remove company matches from currentMatches
+      // so interceptSend only sees general ones
+      currentMatches = generalMatches;
+    }
+
+    // ── General matches: show banner + block send for user review ──────────
+    if (generalMatches.length) {
+      showWarning(generalMatches);
       blockSendButton();
     } else {
+      // No general matches left (only company, now auto-masked)
       hideWarning();
       unblockSendButton();
     }
   }
-
-  // Poll every 500ms (catches paste, voice input, etc.)
-  setInterval(scan, 500);
-
-  // Also fire instantly on keyboard input for zero-delay feedback
-  document.addEventListener("input", scan, { passive: true });
-
-  console.log("[Valora] v2 content script loaded ✓");
 })();

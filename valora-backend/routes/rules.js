@@ -1,31 +1,18 @@
 // ─── Valora — /api/rules Routes ───────────────────────────────────────────────
-//
-// GET  /api/rules      → returns the single rules document (creates default if missing)
-// PUT  /api/rules      → replaces the rules document (used by admin dashboard)
-// POST /api/rules/domain        → add one domain
-// DELETE /api/rules/domain      → remove one domain
-// POST /api/rules/keyword       → add one keyword
-// DELETE /api/rules/keyword     → remove one keyword
-// POST /api/rules/pattern       → add one custom pattern
-// DELETE /api/rules/pattern/:label → remove a custom pattern by label
-// ─────────────────────────────────────────────────────────────────────────────
-
 const express = require("express");
 const router  = express.Router();
 const Rule    = require("../models/Rule");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authMiddleware, adminMiddleware } = require("../middleware/authMiddleware");
 
-// ── Helper: get or create the singleton rules document ───────────────────────
 async function getRules() {
   let rules = await Rule.findOne();
   if (!rules) {
-    // First run — seed with sensible defaults so the extension gets something
     rules = await Rule.create({
       domains: ["@company.com"],
       keywords: ["Project Falcon", "confidential", "merger"],
       customPatterns: [
-        { label: "Employee ID", pattern: "EMP-\\d{6}" },
+        { label: "Employee ID", pattern: "EMP-\\d{6}", source: "company" },
       ],
     });
     console.log("[Rules] Default rules document created in DB ✓");
@@ -33,41 +20,50 @@ async function getRules() {
   return rules;
 }
 
-// ── GET /api/rules ────────────────────────────────────────────────────────────
-// Called by the Chrome extension on every page load.
-// Returns the full rules object; extension merges it with its local patterns.
+// ── GET /api/rules ─────────────────────────────────────────────────────────────
+// Now returns { companyRules, generalRules } so content.js can route matches.
+// companyRules  → auto-mask + toast (no popup)
+// generalRules  → popup + user chooses
 router.get(
   "/",
   authMiddleware,
   asyncHandler(async (req, res) => {
     const rule = await Rule.findOne();
-    console.log("Rule from DB:", rule);
 
     if (!rule) {
       return res.json({
-        domains: [],
-        keywords: [],
-        customPatterns: []
+        companyRules: { domains: [], keywords: [], customPatterns: [] },
+        generalRules: { domains: [], keywords: [], customPatterns: [] },
       });
     }
 
+    // Split customPatterns by source field
+    const companyPatterns = (rule.customPatterns || []).filter(p => p.source !== "general");
+    const generalPatterns = (rule.customPatterns || []).filter(p => p.source === "general");
+
     return res.json({
-      domains: rule.domains || [],
-      keywords: rule.keywords || [],
-      customPatterns: rule.customPatterns || []
+      // Company rules: all domains + keywords are always company-level
+      companyRules: {
+        domains:        rule.domains        || [],
+        keywords:       rule.keywords       || [],
+        customPatterns: companyPatterns,
+      },
+      // General rules: only patterns explicitly marked as "general"
+      generalRules: {
+        domains:        [],
+        keywords:       [],
+        customPatterns: generalPatterns,
+      },
     });
   })
 );
 
-// ── PUT /api/rules ────────────────────────────────────────────────────────────
-// Full replace — used by the admin dashboard to push a new rules set.
-// Body: { domains[], keywords[], customPatterns[] }
+// ── PUT /api/rules ─────────────────────────────────────────────────────────────
 router.put(
   "/",
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { domains, keywords, customPatterns } = req.body;
-
     const rules = await getRules();
 
     if (Array.isArray(domains))        rules.domains        = domains;
@@ -75,14 +71,12 @@ router.put(
     if (Array.isArray(customPatterns)) rules.customPatterns = customPatterns;
 
     await rules.save();
-
     console.log("[Rules] Rules updated via PUT ✓");
     res.json({ success: true, rules });
   })
 );
 
-// ── POST /api/rules/domain ────────────────────────────────────────────────────
-// Add a single domain. Body: { domain: "@newco.com" }
+// ── POST /api/rules/domain ─────────────────────────────────────────────────────
 router.post(
   "/domain",
   [authMiddleware, adminMiddleware],
@@ -101,14 +95,12 @@ router.post(
 
     rules.domains.push(clean);
     await rules.save();
-
     console.log(`[Rules] Domain added: ${clean}`);
     res.json({ success: true, rules });
   })
 );
 
-// ── DELETE /api/rules/domain ──────────────────────────────────────────────────
-// Remove a single domain. Body: { domain: "@oldco.com" }
+// ── DELETE /api/rules/domain ───────────────────────────────────────────────────
 router.delete(
   "/domain",
   [authMiddleware, adminMiddleware],
@@ -120,17 +112,14 @@ router.delete(
 
     const clean = domain.toLowerCase().trim();
     const rules = await getRules();
-
     rules.domains = rules.domains.filter((d) => d !== clean);
     await rules.save();
-
     console.log(`[Rules] Domain removed: ${clean}`);
     res.json({ success: true, rules });
   })
 );
 
-// ── POST /api/rules/keyword ───────────────────────────────────────────────────
-// Add a keyword. Body: { keyword: "Project Falcon" }
+// ── POST /api/rules/keyword ────────────────────────────────────────────────────
 router.post(
   "/keyword",
   [authMiddleware, adminMiddleware],
@@ -142,24 +131,19 @@ router.post(
 
     const clean = keyword.trim();
     const rules = await getRules();
-
-    const exists = rules.keywords.some(
-      (k) => k.toLowerCase() === clean.toLowerCase()
-    );
+    const exists = rules.keywords.some((k) => k.toLowerCase() === clean.toLowerCase());
     if (exists) {
       return res.json({ success: true, message: "Keyword already exists", rules });
     }
 
     rules.keywords.push(clean);
     await rules.save();
-
     console.log(`[Rules] Keyword added: ${clean}`);
     res.json({ success: true, rules });
   })
 );
 
-// ── DELETE /api/rules/keyword ─────────────────────────────────────────────────
-// Remove a keyword. Body: { keyword: "Project Falcon" }
+// ── DELETE /api/rules/keyword ──────────────────────────────────────────────────
 router.delete(
   "/keyword",
   [authMiddleware, adminMiddleware],
@@ -174,47 +158,44 @@ router.delete(
       (k) => k.toLowerCase() !== keyword.toLowerCase().trim()
     );
     await rules.save();
-
     console.log(`[Rules] Keyword removed: ${keyword}`);
     res.json({ success: true, rules });
   })
 );
 
-// ── POST /api/rules/pattern ───────────────────────────────────────────────────
-// Add a custom regex pattern. Body: { label: "Employee ID", pattern: "EMP-\\d{6}" }
+// ── POST /api/rules/pattern ────────────────────────────────────────────────────
+// Now accepts optional `source` field: "company" (default) | "general"
 router.post(
   "/pattern",
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
-    const { label, pattern } = req.body;
+    const { label, pattern, source = "company" } = req.body;
     if (!label || !pattern) {
       return res.status(400).json({ success: false, error: "label and pattern are required" });
     }
+    if (!["company", "general"].includes(source)) {
+      return res.status(400).json({ success: false, error: "source must be 'company' or 'general'" });
+    }
 
-    // Validate that the pattern is a valid regex before saving
-    try {
-      new RegExp(pattern);
-    } catch (e) {
+    try { new RegExp(pattern); }
+    catch (e) {
       return res.status(400).json({ success: false, error: `Invalid regex: ${e.message}` });
     }
 
     const rules = await getRules();
-
     const exists = rules.customPatterns.some((p) => p.label === label.trim());
     if (exists) {
       return res.json({ success: true, message: "Pattern label already exists", rules });
     }
 
-    rules.customPatterns.push({ label: label.trim(), pattern: pattern.trim() });
+    rules.customPatterns.push({ label: label.trim(), pattern: pattern.trim(), source });
     await rules.save();
-
-    console.log(`[Rules] Custom pattern added: ${label} → ${pattern}`);
+    console.log(`[Rules] Custom pattern added: ${label} → ${pattern} (${source})`);
     res.json({ success: true, rules });
   })
 );
 
-// ── DELETE /api/rules/pattern ─────────────────────────────────────────────────
-// Remove a custom pattern by label. Body: { label: "Employee ID" }
+// ── DELETE /api/rules/pattern ──────────────────────────────────────────────────
 router.delete(
   "/pattern",
   [authMiddleware, adminMiddleware],
@@ -225,11 +206,8 @@ router.delete(
     }
 
     const rules = await getRules();
-    rules.customPatterns = rules.customPatterns.filter(
-      (p) => p.label !== label.trim()
-    );
+    rules.customPatterns = rules.customPatterns.filter((p) => p.label !== label.trim());
     await rules.save();
-
     console.log(`[Rules] Custom pattern removed: ${label}`);
     res.json({ success: true, rules });
   })
