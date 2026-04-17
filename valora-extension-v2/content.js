@@ -281,7 +281,9 @@
           <code style="font-size:11px;background:#1e1e3a;padding:1px 4px;
             border-radius:3px;">***</code> inline in your message.<br>
           <b style="color:#9090b8;">Send with [REDACTED]</b> — replaces all remaining
-          items before sending.
+          items before sending.<br>
+          <b style="color:#e05555;">Send anyway</b> — sends your message as-is without
+          any masking (violation will be logged).
         </div>
 
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -296,6 +298,12 @@
             color:#c0c0e0;border:1px solid #3a3a5a;border-radius:7px;font-size:13px;
             cursor:pointer;">
             Send with [REDACTED]
+          </button>
+          <button id="valora-btn-send-anyway"
+            style="padding:8px 16px;background:transparent;color:#e05555;
+            border:1px solid #5a2a2a;border-radius:7px;font-size:13px;cursor:pointer;"
+            title="Send message without any masking or redaction">
+            Send anyway
           </button>
           <button id="valora-btn-cancel"
             style="padding:8px 16px;background:transparent;color:#666688;
@@ -365,6 +373,22 @@
         setText(input, redacted);
       }
 
+      await logViolation(matches, window.location.href);
+
+      modal.remove();
+      unblockSendButton();
+      hideWarning();
+      lastText       = "";
+      currentMatches = [];
+
+      setTimeout(() => {
+        const btn = getSendButton();
+        if (btn) btn.click();
+      }, 80);
+    });
+
+    document.getElementById("valora-btn-send-anyway").addEventListener("click", async () => {
+      // Log the violation even though the user chose to send as-is
       await logViolation(matches, window.location.href);
 
       modal.remove();
