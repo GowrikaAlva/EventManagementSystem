@@ -30,6 +30,7 @@
   let currentMatches = [];
   let sendBlocked    = false;
   let toastShown     = false;
+  let isProtectionEnabled = true;
 
   // ── Settings defaults (kept in sync via storage listener) ─────────────────
   const SETTINGS_DEFAULTS = {
@@ -53,6 +54,10 @@
     }
 
     // Load initial settings
+    chrome.storage.local.get(["isProtectionEnabled"], (res) => {
+      isProtectionEnabled = res.isProtectionEnabled ?? true;
+    });
+
     chrome.storage.local.get(SETTINGS_DEFAULTS, (settings) => {
       applyStorageSettings(settings);
       console.log("[Valora] Storage settings applied ✓");
@@ -64,6 +69,19 @@
     // force a re-scan of whatever text is currently in the input box.
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local") return;
+
+      if (changes.isProtectionEnabled) {
+        isProtectionEnabled = changes.isProtectionEnabled.newValue;
+        if (!isProtectionEnabled) {
+          hideWarning();
+          unblockSendButton();
+          currentMatches = [];
+          // Force re-scan to clear effects immediately
+          lastText = "";
+          scan();
+          return;
+        }
+      }
 
       const relevantKeys = [
         "enableEmailDetection",
@@ -184,7 +202,7 @@
       maxWidth:     "320px",
       lineHeight:   "1.4",
     });
-    toast.textContent = `🔒 Masking ${count} sensitive item${count > 1 ? "s" : ""} per company policy`;
+    toast.textContent = `Masking ${count} sensitive item${count > 1 ? "s" : ""} per company policy`;
     document.body.appendChild(toast);
 
     setTimeout(() => { toast.style.opacity = "0"; }, 3000);
@@ -293,7 +311,7 @@
         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 
         <div style="font-size:15px;font-weight:600;margin-bottom:4px;">
-          ⚠ Sensitive data detected
+          Warning: Sensitive data detected
         </div>
         <div style="font-size:12px;color:#8888aa;margin-bottom:14px;">
           Select items to mask inline in your message, or redact all with [REDACTED].
@@ -467,7 +485,7 @@
 
       const icon = document.createElement("span");
       icon.id = "valora-icon";
-      icon.innerHTML = "⚠";
+      icon.innerHTML = "!";
 
       const body = document.createElement("div");
       body.id = "valora-body";
@@ -512,6 +530,13 @@
   // no need to re-read storage on every 500ms tick (which would be wasteful
   // and introduce async race conditions with the modal/block state).
   function scan() {
+    if (!isProtectionEnabled) {
+      hideWarning();
+      unblockSendButton();
+      currentMatches = [];
+      return;
+    }
+
     const input = getInputBox();
     if (!input) return;
 

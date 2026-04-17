@@ -101,6 +101,7 @@ document.getElementById("btn-logout").addEventListener("click", () => {
 });
 
 const DEFAULTS = {
+  isProtectionEnabled:       true,
   enableEmailDetection:      true,
   enableApiKeyDetection:     true,
   enableCreditCardDetection: true,

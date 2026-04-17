@@ -25,6 +25,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // keep channel open for async response
   }
 
+  // ── Audit logging ─────────────────────────────────────────────────────────
+  if (message.type === "LOG_AUDIT") {
+    fetch("http://127.0.0.1:5000/api/audit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(message.payload)
+    })
+    .catch(async () => {
+      const data = await chrome.storage.local.get(["valoraOfflineAuditLogs"]);
+      const logs = data.valoraOfflineAuditLogs || [];
+      logs.push(message.payload);
+      await chrome.storage.local.set({ valoraOfflineAuditLogs: logs });
+    });
+  }
+
   // ── Log violation ─────────────────────────────────────────────────────────
   if (message.type === "LOG_VIOLATION") {
     fetch("http://127.0.0.1:5000/api/violations", {
