@@ -27,9 +27,9 @@
   // ── State ──────────────────────────────────────────────────────────────────
   let lastText       = "";
   let warningVisible = false;
-  let currentMatches = [];        // ALL matches (company + general)
+  let currentMatches = [];
   let sendBlocked    = false;
-  let toastShown     = false;     // show company toast only once per page load
+  let toastShown     = false;
 
   // ── Startup ────────────────────────────────────────────────────────────────
   (async function init() {
@@ -42,7 +42,6 @@
       return;
     }
 
-    // Load popup toggle settings
     chrome.storage.local.get(
       {
         enableEmailDetection:      true,
@@ -53,12 +52,11 @@
         companyDomains:            ["@company.com"],
       },
       (settings) => {
-        applyStorageSettings(settings); // detector.js
+        applyStorageSettings(settings);
         console.log("[Valora] Storage settings applied ✓");
       }
     );
 
-    // Fetch company + general rules from backend via background.js
     chrome.runtime.sendMessage(
       { type: "FETCH_RULES", token: valoraToken },
       (response) => {
@@ -73,7 +71,6 @@
       }
     );
 
-    // Start scan loop
     setInterval(scan, 500);
     document.addEventListener("input", scan, { passive: true });
     console.log("[Valora] v2 content script loaded ✓");
@@ -127,7 +124,7 @@
     setText(field, current.split(originalValue).join(masked));
   }
 
-  // ── Company toast — mentions count and policy ──────────────────────────────
+  // ── Company toast ──────────────────────────────────────────────────────────
   function showCompanyToast(count) {
     if (toastShown) return;
     toastShown = true;
@@ -158,49 +155,75 @@
     setTimeout(() => { toast.remove(); },            3400);
   }
 
+  // ── Enter key interceptor ──────────────────────────────────────────────────
+  function interceptEnter(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      const generalMatches = currentMatches.filter((m) => m.source === "general");
+      if (generalMatches.length > 0) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        showModal(generalMatches);
+      }
+    }
+  }
+
   // ── Send button blocking ───────────────────────────────────────────────────
   function blockSendButton() {
     if (sendBlocked) return;
     const btn = getSendButton();
-    if (!btn) return;
+    if (btn) {
+      btn.dataset.valoraBlocked   = "true";
+      btn.dataset.valoraOrigTitle = btn.title || "";
+      btn.addEventListener("click", interceptSend, { capture: true });
+      btn.style.opacity = "0.45";
+      btn.style.cursor  = "not-allowed";
+      btn.title = "Valora: sensitive data detected — review before sending";
+    }
+
+    // Also block Enter key on the input field
+    const input = getInputBox();
+    if (input) {
+      input.addEventListener("keydown", interceptEnter, { capture: true });
+    }
+
     sendBlocked = true;
-    btn.dataset.valoraBlocked    = "true";
-    btn.dataset.valoraOrigTitle  = btn.title || "";
-    btn.addEventListener("click", interceptSend, { capture: true });
-    btn.style.opacity = "0.45";
-    btn.style.cursor  = "not-allowed";
-    btn.title = "Valora: sensitive data detected — review before sending";
   }
 
   function unblockSendButton() {
     if (!sendBlocked) return;
     const btn = getSendButton();
-    if (!btn) { sendBlocked = false; return; }
-    btn.removeEventListener("click", interceptSend, { capture: true });
-    btn.style.opacity = "";
-    btn.style.cursor  = "";
-    btn.title = btn.dataset.valoraOrigTitle || "";
-    delete btn.dataset.valoraBlocked;
-    delete btn.dataset.valoraOrigTitle;
+    if (btn) {
+      btn.removeEventListener("click", interceptSend, { capture: true });
+      btn.style.opacity = "";
+      btn.style.cursor  = "";
+      btn.title = btn.dataset.valoraOrigTitle || "";
+      delete btn.dataset.valoraBlocked;
+      delete btn.dataset.valoraOrigTitle;
+    }
+
+    // Also remove Enter key blocker
+    const input = getInputBox();
+    if (input) {
+      input.removeEventListener("keydown", interceptEnter, { capture: true });
+    }
+
     sendBlocked = false;
   }
 
   function interceptSend(e) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    // Only pass general matches to modal — company ones are already auto-masked
     const generalMatches = currentMatches.filter((m) => m.source === "general");
     if (generalMatches.length > 0) {
       showModal(generalMatches);
     }
   }
 
-  // ── Modal (general matches only — user selects what to mask) ──────────────
+  // ── Modal ──────────────────────────────────────────────────────────────────
   function showModal(matches) {
     const existing = document.getElementById("valora-modal");
     if (existing) existing.remove();
 
-    // Build checklist rows
     const rows = matches.map((m, i) => `
       <li style="display:flex;align-items:center;gap:10px;padding:8px 0;
         border-bottom:0.5px solid #2a2a4a;">
@@ -284,7 +307,6 @@
     `;
     document.body.appendChild(modal);
 
-    // ── Select all / deselect all toggle ──────────────────────────────────
     let allSelected = false;
     document.getElementById("valora-select-all").addEventListener("click", () => {
       allSelected = !allSelected;
@@ -296,7 +318,6 @@
       updateMaskBtnLabel();
     });
 
-    // Update "Mask selected (N)" label as user checks/unchecks
     function updateMaskBtnLabel() {
       const count = modal.querySelectorAll("input[type=checkbox]:checked").length;
       document.getElementById("valora-btn-mask-selected").textContent =
@@ -306,7 +327,6 @@
       cb.addEventListener("change", updateMaskBtnLabel);
     });
 
-    // ── Mask selected ──────────────────────────────────────────────────────
     document.getElementById("valora-btn-mask-selected").addEventListener("click", () => {
       const input   = getInputBox();
       const checked = [...modal.querySelectorAll("input[type=checkbox]:checked")]
@@ -319,38 +339,33 @@
         return;
       }
 
-      // Apply inline masking for each checked item
       checked.forEach((i) => {
         if (input) applyMaskInField(input, matches[i].value);
       });
 
-      // Determine what remains unmasked
       const remaining = matches.filter((_, i) => !checked.includes(i));
 
       if (remaining.length === 0) {
-        // Nothing left — close modal and unblock
         modal.remove();
         unblockSendButton();
         hideWarning();
         currentMatches = [];
       } else {
-        // Rebuild modal with only remaining items so user can decide on them
         currentMatches = remaining;
         modal.remove();
         showModal(remaining);
       }
     });
 
-    // ── Send with [REDACTED] — redact all remaining general matches ────────
     document.getElementById("valora-btn-redact").addEventListener("click", async () => {
       const input = getInputBox();
       if (input) {
         const original = getText(input);
-        const redacted = redactText(original, matches); // utils/redactor.js
+        const redacted = redactText(original, matches);
         setText(input, redacted);
       }
 
-      await logViolation(matches, window.location.href); // services/api.js
+      await logViolation(matches, window.location.href);
 
       modal.remove();
       unblockSendButton();
@@ -364,12 +379,10 @@
       }, 80);
     });
 
-    // ── Cancel ─────────────────────────────────────────────────────────────
     document.getElementById("valora-btn-cancel").addEventListener("click", () => {
       modal.remove();
     });
 
-    // Close on backdrop click
     modal.addEventListener("click", (e) => {
       if (e.target === modal) modal.remove();
     });
@@ -449,7 +462,6 @@
       return;
     }
 
-    // detector.js — returns [{ type, value, source }]
     const matches = detectSensitiveData(text);
     currentMatches = matches;
 
@@ -462,22 +474,16 @@
     const companyMatches = matches.filter((m) => m.source === "company");
     const generalMatches = matches.filter((m) => m.source === "general");
 
-    // ── Company matches: auto-mask immediately + show toast with count ─────
     if (companyMatches.length) {
       companyMatches.forEach((m) => applyMaskInField(input, m.value));
       showCompanyToast(companyMatches.length);
-
-      // Remove company matches from currentMatches so interceptSend only
-      // sees general ones
       currentMatches = generalMatches;
     }
 
-    // ── General matches: show banner + block send for user review ──────────
     if (generalMatches.length) {
       showWarning(generalMatches);
       blockSendButton();
     } else {
-      // No general matches left — company ones are already auto-masked
       hideWarning();
       unblockSendButton();
     }
