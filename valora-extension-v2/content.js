@@ -39,7 +39,7 @@
     enableCreditCardDetection: true,
     enablePhoneDetection:      true,
     enableSSNDetection:        true,
-    companyDomains:            ["@company.com"],
+    sensitiveKeywords:         [],
   };
 
   // ── Startup ────────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@
         "enableCreditCardDetection",
         "enablePhoneDetection",
         "enableSSNDetection",
-        "companyDomains",
+        "sensitiveKeywords",
       ];
 
       const hasRelevantChange = relevantKeys.some((key) => key in changes);

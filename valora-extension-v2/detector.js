@@ -3,6 +3,7 @@
 
 const VALORA_CONFIG = {
   companyDomains: ["@company.com", "@myorg.com", "@gmail.com"],
+  sensitiveKeywords: [],
   enableEmailDetection:      true,
   enableApiKeyDetection:     true,
   enableCreditCardDetection: true,
@@ -59,6 +60,9 @@ function applyStorageSettings(settings) {
   if (typeof settings.enableSSNDetection        === "boolean") VALORA_CONFIG.enableSSNDetection        = settings.enableSSNDetection;
   if (Array.isArray(settings.companyDomains) && settings.companyDomains.length > 0) {
     VALORA_CONFIG.companyDomains = settings.companyDomains;
+  }
+  if (Array.isArray(settings.sensitiveKeywords) && settings.sensitiveKeywords.length > 0) {
+    VALORA_CONFIG.sensitiveKeywords = settings.sensitiveKeywords;
   }
 }
 
@@ -154,6 +158,13 @@ function detectSensitiveData(text) {
 
   // Keywords — case-insensitive substring match
   cr.keywords.forEach((keyword) => {
+    if (text.toLowerCase().includes(keyword.toLowerCase())) {
+      push("Keyword", keyword, "company");
+    }
+  });
+
+  // User-defined sensitive keywords (act as company overrides)
+  VALORA_CONFIG.sensitiveKeywords.forEach((keyword) => {
     if (text.toLowerCase().includes(keyword.toLowerCase())) {
       push("Keyword", keyword, "company");
     }
