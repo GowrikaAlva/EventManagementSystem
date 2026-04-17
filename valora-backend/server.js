@@ -33,8 +33,8 @@ const app = express();
 app.use(cors({
   origin: [
     "https://chatgpt.com",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173"
+    /^http:\/\/localhost:\d+$/,  // Allow any localhost port for dev (5173, 5174, 5175, etc.)
+    /^http:\/\/127\.0\.0\.1:\d+$/  // Allow any 127.0.0.1 port for dev
   ],
   credentials: true
 }));
