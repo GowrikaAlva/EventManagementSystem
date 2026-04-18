@@ -59,4 +59,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     return true;
   }
+
+  // ── Heartbeat Ping ────────────────────────────────────────────────────────
+  if (message.type === "PING_HEARTBEAT") {
+    chrome.storage.local.get(["valoraLastHeartbeat"], (res) => {
+      const now = Date.now();
+      const last = res.valoraLastHeartbeat || 0;
+      // Send once a day (24 hours)
+      if (now - last > 24 * 60 * 60 * 1000) {
+        fetch("http://127.0.0.1:5000/api/activity", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: message.token ? `Bearer ${message.token}` : "",
+          },
+        })
+          .then((res) => res.json())
+          .then(() => chrome.storage.local.set({ valoraLastHeartbeat: now }))
+          .catch((err) => console.error("[Valora BG] Heartbeat error:", err));
+      }
+    });
+    return true;
+  }
 });

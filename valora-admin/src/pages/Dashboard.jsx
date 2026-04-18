@@ -30,6 +30,7 @@ const Dashboard = () => {
   const [totalLeaks, setTotalLeaks] = useState(0);
   const [topUsers, setTopUsers] = useState([]);
   const [recentViolations, setRecentViolations] = useState([]);
+  const [teamActivity, setTeamActivity] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,6 +44,9 @@ const Dashboard = () => {
 
         const recentRes = await api.get('/violations?limit=10');
         if (recentRes.data.success) setRecentViolations(recentRes.data.violations);
+
+        const teamRes = await api.get('/activity/team');
+        if (teamRes.data.success) setTeamActivity(teamRes.data.team);
       } catch (err) {
         console.error("Dashboard error", err);
       } finally {
@@ -81,32 +85,29 @@ const Dashboard = () => {
 
         <section className="card">
           <div className="card__head">
-            <p className="card__title">Top offenders</p>
+            <p className="card__title">Recent incidents</p>
           </div>
           <div className="card__body">
-            <div className="metric" style={{ alignItems: "center" }}>
+            <div className="metric" style={{ alignItems: "center", marginTop: 4 }}>
               <div>
-                <div className="value">{loading ? "—" : topUsers.length}</div>
-                <div className="hint">Users with repeated policy violations</div>
+                <div className="value">{loading ? "—" : recentViolations.length}</div>
+                <div className="hint">Latest events from the violations stream</div>
               </div>
-              <div className="badge" style={{ borderColor: "rgba(255,176,32,.35)", background: "rgba(255,176,32,.10)" }}>
-                Watchlist
-              </div>
+              <div className="badge badge--active">Live</div>
             </div>
           </div>
         </section>
 
         <section className="card">
           <div className="card__head">
-            <p className="card__title">Recent incidents</p>
+            <p className="card__title">Employee Status</p>
           </div>
           <div className="card__body">
-            <div className="metric" style={{ alignItems: "center" }}>
+            <div className="metric" style={{ alignItems: "center", marginTop: 4 }}>
               <div>
-                <div className="value">{loading ? "—" : recentViolations.length}</div>
-                <div className="hint">Latest events from the violations stream</div>
+                <div className="value">{loading ? "—" : `${teamActivity.filter(e => e.status === "active").length} / ${teamActivity.length}`}</div>
+                <div className="hint">Active employees currently monitored</div>
               </div>
-              <div className="badge badge--active">Live</div>
             </div>
           </div>
         </section>
@@ -134,8 +135,10 @@ const Dashboard = () => {
                 ))}
                 {topUsers.length === 0 && (
                   <tr>
-                    <td colSpan={2} style={{ color: "rgba(234,240,255,.65)" }}>
-                      No user data
+                    <td colSpan={2} style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.4)" }}>
+                      <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, marginBottom: 8 }}><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                      <br/>
+                      No user data available
                     </td>
                   </tr>
                 )}
@@ -169,8 +172,10 @@ const Dashboard = () => {
                 ))}
                 {recentViolations.length === 0 && (
                   <tr>
-                    <td colSpan={3} style={{ color: "rgba(234,240,255,.65)" }}>
-                      No violations reported
+                    <td colSpan={3} style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.4)" }}>
+                      <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, marginBottom: 8 }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                      <br/>
+                      All clear. No violations detected.
                     </td>
                   </tr>
                 )}
@@ -179,6 +184,60 @@ const Dashboard = () => {
           </div>
         </section>
       </div>
+
+      <section className="card">
+        <div className="card__head">
+          <p className="card__title">Employee Extension Status</p>
+        </div>
+        <div className="card__body">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Status</th>
+                <th>Last Seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {teamActivity.map((emp, idx) => {
+                let badgeClass = "badge";
+                let statusText = "Not Installed";
+                let customStyle = { borderColor: "rgba(255,77,77,.35)", background: "rgba(255,77,77,.10)", color: "rgba(255,77,77,.9)" };
+
+                if (emp.status === "active") {
+                  badgeClass = "badge badge--active";
+                  statusText = "Active";
+                  customStyle = {}; // relies on badge--active class
+                } else if (emp.status === "inactive") {
+                  statusText = "Inactive";
+                  customStyle = { borderColor: "rgba(255,176,32,.35)", background: "rgba(255,176,32,.10)", color: "rgba(255,176,32,.9)" };
+                }
+
+                return (
+                  <tr key={idx}>
+                    <td>{emp.email}</td>
+                    <td>
+                      <span className={badgeClass} style={customStyle}>
+                        {statusText}
+                      </span>
+                    </td>
+                    <td>{emp.lastActive ? new Date(emp.lastActive).toLocaleString() : "Never"}</td>
+                  </tr>
+                );
+              })}
+              {teamActivity.length === 0 && (
+                <tr>
+                  <td colSpan={3} style={{ textAlign: "center", padding: "40px 0", color: "rgba(255,255,255,0.4)" }}>
+                    <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, marginBottom: 8 }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    <br/>
+                    Add employees to monitor coverage.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 };

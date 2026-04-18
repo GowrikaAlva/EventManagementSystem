@@ -23,6 +23,9 @@ const { errorHandler } = require("./middleware/errorHandler");
 // ── Connect to MongoDB ────────────────────────────────────────────────────────
 connectDB();
 
+// ── Start Jobs ───────────────────────────────────────────────────────────────
+require("./jobs/inactivityChecker")();
+
 // ── Create Express app ────────────────────────────────────────────────────────
 const app = express();
 
@@ -66,6 +69,8 @@ app.use("/api/auth", require("./routes/auth"));
 // Admin Endpoints
 app.use("/api/users", require("./routes/users"));
 app.use("/api/analytics", require("./routes/analytics"));
+app.use("/api/activity", require("./routes/activity"));
+app.use("/api/reports", require("./routes/reports"));
 
 // Detection rules (read by extension, managed by admin dashboard)
 app.use("/api/rules", require("./routes/rules"));

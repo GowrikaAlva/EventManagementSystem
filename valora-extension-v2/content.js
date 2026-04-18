@@ -131,6 +131,9 @@
       );
     }
 
+    // Heartbeat ping
+    chrome.runtime.sendMessage({ type: "PING_HEARTBEAT", token: valoraToken });
+
     setInterval(scan, 500);
     document.addEventListener("input", scan, { passive: true });
     console.log("[Valora] v2 content script loaded ✓");
