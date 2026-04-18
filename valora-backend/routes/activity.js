@@ -4,6 +4,7 @@ const User = require("../models/User");
 const ActivityLog = require("../models/ActivityLog");
 const { asyncHandler } = require("../middleware/errorHandler");
 const { authMiddleware, adminMiddleware } = require("../middleware/authMiddleware");
+const mongoose = require("mongoose");
 
 // @route   POST /api/activity
 // @desc    Heartbeat from extension
@@ -33,7 +34,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const employees = await User.find({ orgId: req.orgId, role: "employee" }).select("email _id");
     const activityLogs = await ActivityLog.aggregate([
-      { $match: { orgId: new require("mongoose").Types.ObjectId(req.orgId) } },
+      { $match: { orgId: new mongoose.Types.ObjectId(req.orgId) } },
       { $sort: { timestamp: -1 } },
       { $group: { _id: "$userId", timestamp: { $first: "$timestamp" } } }
     ]);

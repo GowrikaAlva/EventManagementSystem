@@ -199,6 +199,9 @@ async function checkBackend() {
     const stored = await new Promise((req) => chrome.storage.local.get(["valoraToken"], req));
     if (stored.valoraToken) tokenOptions.Authorization = `Bearer ${stored.valoraToken}`;
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+
     const res = await fetch(`${VALORA_API_BASE}/rules`, {
       method: "GET",
       headers: { ...tokenOptions },

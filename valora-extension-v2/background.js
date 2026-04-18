@@ -62,10 +62,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // ── Heartbeat Ping ────────────────────────────────────────────────────────
   if (message.type === "PING_HEARTBEAT") {
-    chrome.storage.local.get(["valoraLastHeartbeat"], (res) => {
+    const platform = message.platform || "Unknown";
+    const storageKey = `valoraLastHeartbeat_${platform}`;
+    
+    chrome.storage.local.get([storageKey], (res) => {
       const now = Date.now();
-      const last = res.valoraLastHeartbeat || 0;
-      // Send once a day (24 hours)
+      const last = res[storageKey] || 0;
+      // Send once a day (24 hours) per platform
       if (now - last > 24 * 60 * 60 * 1000) {
         fetch("http://127.0.0.1:5000/api/activity", {
           method: "POST",
@@ -73,9 +76,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             "Content-Type": "application/json",
             Authorization: message.token ? `Bearer ${message.token}` : "",
           },
+          body: JSON.stringify({ platform }),
         })
           .then((res) => res.json())
-          .then(() => chrome.storage.local.set({ valoraLastHeartbeat: now }))
+          .then(() => chrome.storage.local.set({ [storageKey]: now }))
           .catch((err) => console.error("[Valora BG] Heartbeat error:", err));
       }
     });

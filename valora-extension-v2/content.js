@@ -125,8 +125,16 @@
       }
     );
 
+    // Determine platform
+    let platform = "Unknown";
+    const hostname = window.location.hostname;
+    if (hostname.includes("chatgpt.com")) platform = "ChatGPT";
+    else if (hostname.includes("gemini.google.com")) platform = "Gemini";
+    else if (hostname.includes("claude.ai")) platform = "Claude";
+    else platform = hostname;
+
     // Heartbeat ping
-    chrome.runtime.sendMessage({ type: "PING_HEARTBEAT", token: valoraToken });
+    chrome.runtime.sendMessage({ type: "PING_HEARTBEAT", token: valoraToken, platform });
 
     setInterval(scan, 500);
     document.addEventListener("input", scan, { passive: true });
