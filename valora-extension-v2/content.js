@@ -44,14 +44,18 @@
 
   // ── Startup ────────────────────────────────────────────────────────────────
   (async function init() {
-    const { valoraToken } = await new Promise((res) =>
-      chrome.storage.local.get(["valoraToken"], res)
+    const { valoraToken, valoraIndividualToken } = await new Promise((res) =>
+      chrome.storage.local.get(["valoraToken", "valoraIndividualToken"], res)
     );
 
-    if (!valoraToken) {
+    if (!valoraToken && !valoraIndividualToken) {
       console.warn("[Valora] Not logged in — detection halted.");
       return;
     }
+
+    const { valoraUserType } = await new Promise((res) =>
+      chrome.storage.local.get(["valoraUserType"], res)
+    );
 
     // Load initial settings
     chrome.storage.local.get(["isProtectionEnabled"], (res) => {
@@ -111,19 +115,21 @@
       scan();
     });
 
-    chrome.runtime.sendMessage(
-      { type: "FETCH_RULES", token: valoraToken },
-      (response) => {
-        if (response?.success) {
-          loadBackendRules({
-            companyRules: response.companyRules,
-            generalRules: response.generalRules,
-          });
-        } else {
-          console.warn("[Valora] Could not load backend rules — using local fallback.");
+    if (valoraUserType !== "individual") {
+      chrome.runtime.sendMessage(
+        { type: "FETCH_RULES", token: valoraToken },
+        (response) => {
+          if (response?.success) {
+            loadBackendRules({
+              companyRules: response.companyRules,
+              generalRules: response.generalRules,
+            });
+          } else {
+            console.warn("[Valora] Could not load backend rules — using local fallback.");
+          }
         }
-      }
-    );
+      );
+    }
 
     setInterval(scan, 500);
     document.addEventListener("input", scan, { passive: true });
@@ -525,11 +531,9 @@
   }
 
   // ── Main scan loop ─────────────────────────────────────────────────────────
-  // NOTE: scan() is intentionally kept synchronous for the detection path.
-  // Settings are kept live via the chrome.storage.onChanged listener above —
-  // no need to re-read storage on every 500ms tick (which would be wasteful
-  // and introduce async race conditions with the modal/block state).
-  function scan() {
+  // NOTE: scan() now includes an async trial check for individual users.
+  // Settings keep live via the chrome.storage.onChanged listener above.
+  async function scan() {
     if (!isProtectionEnabled) {
       hideWarning();
       unblockSendButton();
@@ -542,6 +546,19 @@
 
     const text = getText(input);
     if (text === lastText) return;
+
+    const { valoraUserType, valoraTrialExpiry, valoraScanCount } = await new Promise(res =>
+      chrome.storage.local.get(["valoraUserType", "valoraTrialExpiry", "valoraScanCount"], res)
+    );
+
+    if (
+      valoraUserType === "individual" &&
+      (Date.now() > Date.parse(valoraTrialExpiry || 0) || (valoraScanCount || 0) >= 50)
+    ) {
+      // Stop detection completely
+      return;
+    }
+
     lastText = text;
 
     if (!text || !text.trim()) {

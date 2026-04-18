@@ -13,6 +13,10 @@ let isFirstLoginFlow = false;
 function showView(view) {
   document.getElementById("login-view").classList.add("hidden");
   document.getElementById("main-view").classList.add("hidden");
+  document.getElementById("entry-view").classList.add("hidden");
+  document.getElementById("register-view").classList.add("hidden");
+  document.getElementById("paywall-view").classList.add("hidden");
+  document.getElementById("org-role-view").classList.add("hidden");
   document.getElementById(view).classList.remove("hidden");
 }
 
@@ -23,12 +27,24 @@ function showError(msg) {
 }
 
 async function checkAuth() {
-  chrome.storage.local.get(["valoraToken"], (res) => {
+  chrome.storage.local.get([
+    "valoraToken", 
+    "valoraIndividualToken", 
+    "valoraTrialExpiry", 
+    "valoraScanCount"
+  ], (res) => {
     if (res.valoraToken) {
       showView("main-view");
       checkBackend();
+    } else if (res.valoraIndividualToken) {
+      if (Date.now() > Date.parse(res.valoraTrialExpiry || 0) || (res.valoraScanCount || 0) >= 50) {
+        showView("paywall-view");
+      } else {
+        showView("main-view");
+        checkBackend();
+      }
     } else {
-      showView("login-view");
+      showView("entry-view");
     }
   });
 }
@@ -90,14 +106,69 @@ document.getElementById("btn-login-submit").addEventListener("click", async () =
 });
 
 document.getElementById("btn-logout").addEventListener("click", () => {
-  chrome.storage.local.remove(["valoraToken", "valoraUser"], () => {
-    document.getElementById("login-email").value = "";
-    document.getElementById("login-password").value = "";
-    document.getElementById("grp-password").classList.add("hidden");
-    document.getElementById("btn-login-next").classList.remove("hidden");
-    document.getElementById("btn-login-submit").classList.add("hidden");
-    showView("login-view");
+  chrome.storage.local.clear(() => {
+    location.reload();
   });
+});
+
+document.getElementById("btn-paywall-logout").addEventListener("click", () => {
+  chrome.storage.local.clear(() => {
+    location.reload();
+  });
+});
+
+// ── Entry View Handlers ──
+document.getElementById("btn-entry-single").addEventListener("click", () => showView("register-view"));
+document.getElementById("btn-entry-org").addEventListener("click", () => showView("org-role-view"));
+
+// ── Org Role View Handlers ──
+document.getElementById("btn-org-employee").addEventListener("click", () => showView("login-view"));
+document.getElementById("btn-org-admin").addEventListener("click", () => {
+  chrome.tabs.create({ url: "http://localhost:5173/" });
+});
+document.getElementById("btn-org-role-back").addEventListener("click", () => showView("entry-view"));
+
+// Register View Switch
+document.getElementById("btn-switch-login").addEventListener("click", () => {
+  showView("login-view"); // Usually single/org login might be separate, but per spec, org employee is existing login view
+});
+
+// ── Registration Handler ──
+function showRegisterError(msg) {
+  const err = document.getElementById("register-error");
+  err.textContent = msg;
+  err.style.display = "block";
+}
+
+document.getElementById("btn-register-submit").addEventListener("click", async () => {
+  const email = document.getElementById("register-email").value.trim();
+  const password = document.getElementById("register-password").value;
+  const confirmPassword = document.getElementById("register-confirm-password").value;
+  
+  if(!email || !password) return showRegisterError("Email and password required");
+  if(password !== confirmPassword) return showRegisterError("Passwords do not match");
+
+  try {
+    const res = await fetch(`${VALORA_API_BASE}/auth/individual/register`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if(res.ok && data.token) {
+      chrome.storage.local.set({ 
+        valoraIndividualToken: data.token, 
+        valoraTrialExpiry: data.trialExpiresAt,
+        valoraUserType: data.userType,
+        valoraScanCount: 0
+      }, () => {
+        checkAuth();
+      });
+    } else {
+      showRegisterError(data.error || "Registration failed");
+    }
+  } catch(e) {
+    showRegisterError("Network error. Is backend running?");
+  }
 });
 
 const DEFAULTS = {

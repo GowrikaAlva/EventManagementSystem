@@ -36,8 +36,16 @@ async function logViolation(matches, pageUrl) {
   if (!matches || matches.length === 0) return;
 
   const stored = await new Promise((res) =>
-    chrome.storage.local.get(["valoraToken"], res)
+    chrome.storage.local.get(["valoraToken", "valoraUserType", "valoraScanCount"], res)
   );
+
+  if (stored.valoraUserType === "individual") {
+    const newCount = (stored.valoraScanCount || 0) + 1;
+
+    await new Promise(res =>
+      chrome.storage.local.set({ valoraScanCount: newCount }, res)
+    );
+  }
 
   const payload = {
     url: pageUrl || window.location.href,
