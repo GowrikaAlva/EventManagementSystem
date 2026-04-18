@@ -77,7 +77,11 @@ const AdminRegister = () => {
                 </div>
                 <div className="card__body">
                   <p className="card__title" style={{ fontSize: 16, color: "#25E6D9" }}>Pro</p>
-                  <div style={{ fontSize: 24, fontWeight: 700, margin: "8px 0" }}>$12<span style={{fontSize: 14, fontWeight: 400, color: "rgba(234,240,255,.55)"}}>/mo</span></div>
+                  <div style={{ fontSize: 24, fontWeight: 700, margin: "8px 0" }}>
+                    $12{" "}
+                    <span style={{ fontSize: 14, fontWeight: 400, color: "rgba(234,240,255,.55)" }}>(₹1,114)</span>
+                    <span style={{ fontSize: 14, fontWeight: 400, color: "rgba(234,240,255,.55)" }}>/mo</span>
+                  </div>
                   <p style={{ color: "rgba(234,240,255,.72)", fontSize: 12 }}>
                     Unlimited employees. Regex rules & alerts.
                   </p>
