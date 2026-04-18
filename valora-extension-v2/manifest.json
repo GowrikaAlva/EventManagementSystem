@@ -5,8 +5,9 @@
   "description": "Detects and blocks sensitive data typed into AI tools. Connects to your company backend for custom rules.",
 
   "icons": {
-    "16":  "icons/icon16.png",
-    "48":  "icons/icon48.png",
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
 
@@ -26,9 +27,9 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16":  "icons/icon16.png",
-      "48":  "icons/icon48.png",
-      "128": "icons/icon128.png"
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
     }
   },
 

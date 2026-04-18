@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Rule = require("../models/Rule");
+const IndividualUser = require("../models/IndividualUser");
 
 // Helper to generate JWT
 const generateToken = (id, role, email, orgId) => {
@@ -182,6 +183,76 @@ router.post("/admin-register", async (req, res, next) => {
       success: true,
       token,
       user: { id: newUser._id, email: newUser.email, role: newUser.role }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// @route   POST /api/auth/individual/register
+// @desc    Register a new individual user
+// @access  Public
+router.post("/individual/register", async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: "Email and password required" });
+    }
+
+    const emailLower = email.toLowerCase();
+    const existingUser = await IndividualUser.findOne({ email: emailLower });
+    if (existingUser) {
+      return res.status(400).json({ success: false, error: "An account with this email already exists" });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = await IndividualUser.create({
+      email: emailLower,
+      password: hashedPassword
+    });
+
+    const token = generateToken(newUser._id, "individual", newUser.email, newUser._id);
+
+    res.json({
+      success: true,
+      token,
+      trialExpiresAt: newUser.trialExpiresAt,
+      userType: "individual"
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// @route   POST /api/auth/individual/login
+// @desc    Login individual user
+// @access  Public
+router.post("/individual/login", async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: "Email and password required" });
+    }
+
+    const user = await IndividualUser.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Invalid credentials" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, error: "Invalid credentials" });
+    }
+
+    const token = generateToken(user._id, "individual", user.email, user._id);
+
+    res.json({
+      success: true,
+      token,
+      trialExpiresAt: user.trialExpiresAt,
+      userType: "individual"
     });
   } catch (err) {
     next(err);
