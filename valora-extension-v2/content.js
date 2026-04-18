@@ -43,19 +43,17 @@
   };
 
   // ── Startup ────────────────────────────────────────────────────────────────
-  (async function init() {
-    const { valoraToken, valoraIndividualToken } = await new Promise((res) =>
-      chrome.storage.local.get(["valoraToken", "valoraIndividualToken"], res)
+  let scanInterval = null;
+
+  async function startDetection() {
+    const { valoraToken, valoraIndividualToken, valoraUserType } = await new Promise((res) =>
+      chrome.storage.local.get(["valoraToken", "valoraIndividualToken", "valoraUserType"], res)
     );
 
     if (!valoraToken && !valoraIndividualToken) {
       console.warn("[Valora] Not logged in — detection halted.");
       return;
     }
-
-    const { valoraUserType } = await new Promise((res) =>
-      chrome.storage.local.get(["valoraUserType"], res)
-    );
 
     // Load initial settings
     chrome.storage.local.get(["isProtectionEnabled"], (res) => {
@@ -65,54 +63,6 @@
     chrome.storage.local.get(SETTINGS_DEFAULTS, (settings) => {
       applyStorageSettings(settings);
       console.log("[Valora] Storage settings applied ✓");
-    });
-
-    // ── KEY FIX: Listen for popup toggle changes in real time ────────────────
-    // Whenever the user flips a toggle in the popup, chrome.storage.onChanged
-    // fires here in the content script. We immediately re-apply settings AND
-    // force a re-scan of whatever text is currently in the input box.
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== "local") return;
-
-      if (changes.isProtectionEnabled) {
-        isProtectionEnabled = changes.isProtectionEnabled.newValue;
-        if (!isProtectionEnabled) {
-          hideWarning();
-          unblockSendButton();
-          currentMatches = [];
-          // Force re-scan to clear effects immediately
-          lastText = "";
-          scan();
-          return;
-        }
-      }
-
-      const relevantKeys = [
-        "enableEmailDetection",
-        "enableApiKeyDetection",
-        "enableCreditCardDetection",
-        "enablePhoneDetection",
-        "enableSSNDetection",
-        "sensitiveKeywords",
-      ];
-
-      const hasRelevantChange = relevantKeys.some((key) => key in changes);
-      if (!hasRelevantChange) return;
-
-      // Build an updated settings object from the change set
-      const updated = {};
-      relevantKeys.forEach((key) => {
-        if (changes[key] !== undefined) {
-          updated[key] = changes[key].newValue;
-        }
-      });
-
-      applyStorageSettings(updated);
-      console.log("[Valora] Settings updated from popup:", updated);
-
-      // Force re-scan with new settings by resetting lastText
-      lastText = "";
-      scan();
     });
 
     if (valoraUserType !== "individual") {
@@ -142,10 +92,60 @@
     // Heartbeat ping
     chrome.runtime.sendMessage({ type: "PING_HEARTBEAT", token: valoraToken, platform });
 
-    setInterval(scan, 500);
-    document.addEventListener("input", scan, { passive: true });
-    console.log("[Valora] v2 content script loaded ✓");
-  })();
+    if (!scanInterval) {
+      scanInterval = setInterval(scan, 500);
+      document.addEventListener("input", scan, { passive: true });
+    }
+    console.log("[Valora] v2 detection started ✓");
+  }
+
+  // ── KEY FIX: Listen for popup toggle changes in real time ────────────────
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+
+    if (changes.valoraToken || changes.valoraIndividualToken) {
+      startDetection();
+    }
+
+    if (changes.isProtectionEnabled) {
+      isProtectionEnabled = changes.isProtectionEnabled.newValue;
+      if (!isProtectionEnabled) {
+        hideWarning();
+        unblockSendButton();
+        currentMatches = [];
+        lastText = "";
+        scan();
+        return;
+      }
+    }
+
+    const relevantKeys = [
+      "enableEmailDetection",
+      "enableApiKeyDetection",
+      "enableCreditCardDetection",
+      "enablePhoneDetection",
+      "enableSSNDetection",
+      "sensitiveKeywords",
+    ];
+
+    const hasRelevantChange = relevantKeys.some((key) => key in changes);
+    if (!hasRelevantChange) return;
+
+    const updated = {};
+    relevantKeys.forEach((key) => {
+      if (changes[key] !== undefined) {
+        updated[key] = changes[key].newValue;
+      }
+    });
+
+    applyStorageSettings(updated);
+    console.log("[Valora] Settings updated from popup:", updated);
+
+    lastText = "";
+    scan();
+  });
+
+  startDetection();
 
   // ── DOM helpers ────────────────────────────────────────────────────────────
   function getInputBox() {
@@ -192,7 +192,8 @@
   function applyMaskInField(field, originalValue) {
     const current = getText(field);
     const masked  = originalValue.slice(0, 2) + "*".repeat(Math.max(originalValue.length - 4, 2)) + originalValue.slice(-2);
-    setText(field, current.split(originalValue).join(masked));
+    const regex = new RegExp(originalValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    setText(field, current.replace(regex, masked));
   }
 
   // ── Company toast ──────────────────────────────────────────────────────────

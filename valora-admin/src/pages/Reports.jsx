@@ -26,7 +26,16 @@ const Reports = () => {
         setLoading(false);
       }
     };
+
     fetchReport();
+    const interval = setInterval(() => {
+      // Don't show loading state on background refresh
+      api.get(`/reports/generate?period=${period}`).then(res => {
+        if (res.data.success) setReport(res.data);
+      }).catch(err => console.error(err));
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [period]);
 
   const handlePrint = () => {

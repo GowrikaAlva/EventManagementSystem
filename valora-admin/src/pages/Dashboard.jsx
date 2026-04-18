@@ -53,7 +53,10 @@ const Dashboard = () => {
         setLoading(false);
       }
     };
+
     fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const spark = useMemo(() => {
