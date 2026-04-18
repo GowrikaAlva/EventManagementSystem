@@ -192,7 +192,8 @@
   function applyMaskInField(field, originalValue) {
     const current = getText(field);
     const masked  = originalValue.slice(0, 2) + "*".repeat(Math.max(originalValue.length - 4, 2)) + originalValue.slice(-2);
-    setText(field, current.split(originalValue).join(masked));
+    const regex = new RegExp(originalValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    setText(field, current.replace(regex, masked));
   }
 
   // ── Company toast ──────────────────────────────────────────────────────────

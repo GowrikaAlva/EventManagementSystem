@@ -34,9 +34,11 @@ function redactText(text, matches) {
 
   matches.forEach(({ value }) => {
     if (!value) return;
+    const lowerText = text.toLowerCase();
+    const lowerValue = value.toLowerCase();
     let searchFrom = 0;
     while (searchFrom < text.length) {
-      const pos = text.indexOf(value, searchFrom);
+      const pos = lowerText.indexOf(lowerValue, searchFrom);
       if (pos === -1) break;
       spans.push({ start: pos, end: pos + value.length });
       searchFrom = pos + 1; // advance by 1 to catch overlapping occurrences
