@@ -57,6 +57,8 @@ button,input,select,textarea{ font:inherit; }
   position: sticky;
   top: 0;
   height: 100svh;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar__brand{
@@ -89,26 +91,26 @@ button,input,select,textarea{ font:inherit; }
   align-items:center;
   gap:10px;
   padding: 10px 12px;
-  border-radius: 12px;
-  color: var(--muted);
-  border: 1px solid transparent;
-  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+  border-radius: 0 12px 12px 0;
+  color: rgba(255,255,255,.5);
+  border-left: 2px solid transparent;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease, color .15s ease;
 }
 .nav a:hover{
-  background: rgba(255,255,255,.06);
-  border-color: rgba(255,255,255,.08);
+  background: transparent;
+  color: rgba(255,255,255,.85);
 }
 .nav a[data-active="true"]{
-  color: var(--text);
-  background: linear-gradient(180deg, rgba(37,230,217,.18), rgba(255,255,255,.06));
-  border-color: rgba(37,230,217,.35);
+  color: #25E6D9;
+  background: linear-gradient(90deg, rgba(37,230,217,.08), transparent);
+  border-left-color: #25E6D9;
 }
 .nav svg{ opacity:.9; }
 
 .sidebar__footer{
   margin-top:auto;
-  padding: 12px 6px 6px;
-  border-top: 1px solid var(--border);
+  padding: 16px 6px 6px;
+  border-top: 1px solid rgba(255,255,255,.08);
 }
 
 .main{
@@ -142,20 +144,21 @@ button,input,select,textarea{ font:inherit; }
 }
 .topbar__title h1{
   margin:0;
-  font-size: 18px;
+  font-size: 20px;
+  font-weight: 600;
   letter-spacing: .3px;
 }
 .topbar__title p{
   margin:0;
-  color: var(--muted-2);
-  font-size: 12px;
+  color: rgba(255,255,255,.45);
+  font-size: 13px;
 }
 
 .content{
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: 22px;
+  padding: 32px 22px 40px;
 }
 
 .grid{
@@ -171,10 +174,10 @@ button,input,select,textarea{ font:inherit; }
 }
 
 .card{
-  border-radius: var(--radius);
-  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 4px 24px rgba(0,0,0,.2);
   overflow:hidden;
 }
 .card__head{
@@ -182,9 +185,9 @@ button,input,select,textarea{ font:inherit; }
 }
 .card__title{
   margin:0;
-  font-size: 13px;
-  letter-spacing: .35px;
-  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,.45);
   text-transform: uppercase;
 }
 .card__body{
@@ -197,12 +200,13 @@ button,input,select,textarea{ font:inherit; }
   gap: 10px;
 }
 .metric .value{
-  font-size: 34px;
-  font-weight: 700;
+  font-size: 48px;
+  font-weight: 600;
   letter-spacing: -.6px;
+  color: #fff;
 }
 .metric .hint{
-  color: var(--muted-2);
+  color: rgba(255,255,255,.4);
   font-size: 12px;
 }
 
@@ -213,19 +217,24 @@ button,input,select,textarea{ font:inherit; }
 }
 .table th{
   text-align:left;
-  color: var(--muted-2);
+  color: rgba(255,255,255,.35);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 11px;
+  text-transform: uppercase;
   padding: 12px 12px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 .table td{
   padding: 12px 12px;
   border-bottom: 1px solid rgba(255,255,255,.06);
   color: rgba(234,240,255,.86);
+  transition: background .15s ease;
+}
+.table tr:nth-child(even) td {
+  background: rgba(255,255,255,.03);
 }
 .table tr:hover td{
-  background: rgba(255,255,255,.03);
+  background: rgba(37,230,217,.06);
 }
 
 .badge{
@@ -289,6 +298,13 @@ button,input,select,textarea{ font:inherit; }
 .btn--danger{
   border-color: rgba(255,77,109,.40);
   background: rgba(255,77,109,.10);
+}
+.btn--ghost{
+  background: transparent;
+  border-color: rgba(255,255,255,.15);
+}
+.btn--ghost:hover{
+  border-color: #25E6D9;
 }
 
 .stack{ display:flex; gap: 12px; align-items:flex-end; }

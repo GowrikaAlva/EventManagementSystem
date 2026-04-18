@@ -25,7 +25,7 @@ const AdminRegister = () => {
       // the backend currently doesn't use fullName but we can send it anyway or add it later
       const res = await api.post('/auth/admin-register', { email, password, fullName });
       if (res.data.success && res.data.token) {
-        localStorage.setItem('valoraAdminToken', res.data.token);
+        sessionStorage.setItem('valoraAdminToken', res.data.token);
         navigate('/'); // Redirect to dashboard which is mapped to "/"
       }
     } catch (err) {

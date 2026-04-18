@@ -21,6 +21,12 @@ function routeMeta(pathname) {
       subtitle: "Configure protected domains and sensitive keywords.",
     };
   }
+  if (pathname === "/reports") {
+    return {
+      title: "Reports",
+      subtitle: "Generate and export weekly, monthly, or yearly activity reports.",
+    };
+  }
   return { title: "Valora Admin", subtitle: "Secure-by-default operations." };
 }
 
@@ -38,7 +44,7 @@ export default function Topbar({ title, subtitle, onLogout }) {
           <p>{finalSubtitle}</p>
         </div>
 
-        <button className="btn btn--primary" onClick={onLogout} type="button">
+        <button className="btn btn--ghost" onClick={onLogout} type="button">
           <IconLogout style={{ marginRight: 8 }} />
           Sign out
         </button>

@@ -16,7 +16,7 @@ const AdminAuth = () => {
       setBusy(true);
       const res = await api.post('/auth/admin-login', { email, password });
       if (res.data.success && res.data.token) {
-        localStorage.setItem('valoraAdminToken', res.data.token);
+        sessionStorage.setItem('valoraAdminToken', res.data.token);
         navigate('/');
       }
     } catch (err) {

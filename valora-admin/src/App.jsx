@@ -5,12 +5,13 @@ import AdminRegister from './pages/AdminRegister';
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
 import Rules from './pages/Rules';
+import Reports from './pages/Reports';
 import AppShell from "./components/layout/AppShell";
 
 const Layout = ({ children }) => {
   const navigate = useNavigate();
   const handleLogout = () => {
-    localStorage.removeItem("valoraAdminToken");
+    sessionStorage.removeItem("valoraAdminToken");
     navigate("/login");
   };
 
@@ -21,7 +22,7 @@ const Layout = ({ children }) => {
 
 // Protected routes wrapper
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem("valoraAdminToken");
+  const token = sessionStorage.getItem("valoraAdminToken");
   if (!token) return <Navigate to="/login" replace />;
   return <Layout>{children}</Layout>;
 };
@@ -36,6 +37,7 @@ function App() {
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/employees" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
         <Route path="/rules" element={<ProtectedRoute><Rules /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
         
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
