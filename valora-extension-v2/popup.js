@@ -10,14 +10,23 @@ const VALORA_API_BASE = "http://127.0.0.1:5000/api";
 /* ── Auth Logic ── */
 let isFirstLoginFlow = false;
 
-function showView(view) {
-  document.getElementById("login-view").classList.add("hidden");
-  document.getElementById("main-view").classList.add("hidden");
-  document.getElementById("entry-view").classList.add("hidden");
-  document.getElementById("register-view").classList.add("hidden");
-  document.getElementById("paywall-view").classList.add("hidden");
-  document.getElementById("org-role-view").classList.add("hidden");
-  document.getElementById(view).classList.remove("hidden");
+let viewHistory = [];
+const ALL_VIEWS = ["login-view", "main-view", "entry-view", "register-view", "paywall-view", "org-role-view"];
+
+function showView(viewId, isBack = false) {
+  const currentView = ALL_VIEWS.find(id => !document.getElementById(id).classList.contains("hidden"));
+  if (currentView && currentView !== viewId && !isBack) {
+    viewHistory.push(currentView);
+  }
+
+  ALL_VIEWS.forEach(id => document.getElementById(id).classList.add("hidden"));
+  document.getElementById(viewId).classList.remove("hidden");
+}
+
+function goBack() {
+  if (viewHistory.length === 0) return;
+  const prevView = viewHistory.pop();
+  showView(prevView, true);
 }
 
 function showError(msg) {
@@ -126,7 +135,10 @@ document.getElementById("btn-org-employee").addEventListener("click", () => show
 document.getElementById("btn-org-admin").addEventListener("click", () => {
   chrome.tabs.create({ url: "http://localhost:5173/" });
 });
-document.getElementById("btn-org-role-back").addEventListener("click", () => showView("entry-view"));
+// Attach back button events
+document.querySelectorAll(".back-btn").forEach(btn => {
+  btn.addEventListener("click", goBack);
+});
 
 // Register View Switch
 document.getElementById("btn-switch-login").addEventListener("click", () => {
