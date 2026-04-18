@@ -8,7 +8,8 @@ const VALORA_CONFIG = {
   enableApiKeyDetection:     true,
   enableCreditCardDetection: true,
   enablePhoneDetection:      true,
-  enableSSNDetection:        true,
+  enableAadhaarDetection:    true,
+  enablePanDetection:        true,
 };
 
 // Populated by loadBackendRules() called from content.js after init
@@ -57,7 +58,8 @@ function applyStorageSettings(settings) {
   if (typeof settings.enableApiKeyDetection     === "boolean") VALORA_CONFIG.enableApiKeyDetection     = settings.enableApiKeyDetection;
   if (typeof settings.enableCreditCardDetection === "boolean") VALORA_CONFIG.enableCreditCardDetection = settings.enableCreditCardDetection;
   if (typeof settings.enablePhoneDetection      === "boolean") VALORA_CONFIG.enablePhoneDetection      = settings.enablePhoneDetection;
-  if (typeof settings.enableSSNDetection        === "boolean") VALORA_CONFIG.enableSSNDetection        = settings.enableSSNDetection;
+  if (typeof settings.enableAadhaarDetection    === "boolean") VALORA_CONFIG.enableAadhaarDetection    = settings.enableAadhaarDetection;
+  if (typeof settings.enablePanDetection        === "boolean") VALORA_CONFIG.enablePanDetection        = settings.enablePanDetection;
   if (Array.isArray(settings.companyDomains) && settings.companyDomains.length > 0) {
     VALORA_CONFIG.companyDomains = settings.companyDomains;
   }
@@ -92,13 +94,18 @@ const PATTERNS = {
     check: () => true,
   },
   phone: {
-    regex: /(?:\+1\s?)?(?:\(\d{3}\)|\d{3})[\s.\-]?\d{3}[\s.\-]?\d{4}\b/g,
+    regex: /(?:\+91[\s-]?)?[6-9]\d{4}\s?\d{5}\b/g,
     label: "Phone number",
     check: () => true,
   },
-  ssn: {
-    regex: /\b\d{3}-\d{2}-\d{4}\b/g,
-    label: "SSN",
+  aadhaar: {
+    regex: /\b\d{4}\s?\d{4}\s?\d{4}\b/g,
+    label: "Aadhaar Number",
+    check: () => true,
+  },
+  pan: {
+    regex: /\b[A-Z]{5}[0-9]{4}[A-Z]\b/g,
+    label: "PAN Number",
     check: () => true,
   },
 };
@@ -116,9 +123,8 @@ function detectSensitiveData(text) {
   if (!text || typeof text !== "string") return [];
 
   const results = [];
-  const seen    = new Set(); // prevent duplicate values in output
+  const seen    = new Set();
 
-  // ── Helper: push a result if value not already seen ───────────────────────
   function push(type, value, source) {
     if (!seen.has(value)) {
       seen.add(value);
@@ -126,89 +132,99 @@ function detectSensitiveData(text) {
     }
   }
 
-  // ── Helper: run a regex pattern object ────────────────────────────────────
-  function runPattern(patternObj, source) {
+  // ── PASS 1: Aadhaar detection (Highest Priority) ──────────────────────────
+  if (VALORA_CONFIG.enableAadhaarDetection) {
+    const aadhaarRegex = new RegExp(PATTERNS.aadhaar.regex.source, PATTERNS.aadhaar.regex.flags);
+    let m;
+    while ((m = aadhaarRegex.exec(text)) !== null) {
+      // Logic: Ensure it's not preceded by +91 or +
+      const pos = m.index;
+      const lookback = text.slice(Math.max(0, pos - 4), pos);
+      if (lookback.includes("+") || lookback.includes("+91")) {
+        continue;
+      }
+      push(PATTERNS.aadhaar.label, m[0], "general");
+    }
+  }
+
+  // ── PASS 2: All other patterns run on "cleaned" text ──────────────────────
+  // We remove detected Aadhaar values from text so they don't trigger phone 
+  // or other numeric detections incorrectly.
+  let cleanText = text;
+  results.forEach(res => {
+    if (res.type === "Aadhaar Number") {
+      const escaped = res.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // Replace with spaces to preserve original string length and offsets
+      cleanText = cleanText.replace(new RegExp(escaped, "g"), " ".repeat(res.value.length));
+    }
+  });
+
+  // Helper to run patterns on cleanText
+  function runOnClean(patternObj, source) {
     const regex = new RegExp(patternObj.regex.source, patternObj.regex.flags);
     let m;
-    while ((m = regex.exec(text)) !== null) {
+    while ((m = regex.exec(cleanText)) !== null) {
       if (patternObj.check(m[0])) {
         push(patternObj.label, m[0], source);
       }
     }
   }
 
-  // ── 1. Company rules from backend (source = "company") ────────────────────
+  // Company rules
   const cr = BACKEND_RULES.companyRules;
-
-  // ── FIX: Extract full emails containing the company domain ────────────────
-  // Previously this pushed just "@company.com" as the value, so the general
-  // email pass later found "john@company.com" (a different string) and also
-  // fired. Now we extract the full email so `seen` blocks it correctly.
   cr.domains.forEach((domain) => {
     const escapedDomain = domain.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const emailRegex = new RegExp(
-      `[A-Z0-9._%+\\-]+${escapedDomain}`,
-      "gi"
-    );
+    const emailRegex = new RegExp(`[A-Z0-9._%+\\-]+${escapedDomain}`, "gi");
     let m;
-    while ((m = emailRegex.exec(text)) !== null) {
+    while ((m = emailRegex.exec(cleanText)) !== null) {
       push("Company email", m[0], "company");
     }
   });
 
-  // Keywords — case-insensitive substring match
   cr.keywords.forEach((keyword) => {
-    if (text.toLowerCase().includes(keyword.toLowerCase())) {
-      push("Keyword", keyword, "company");
+    if (cleanText.toLowerCase().includes(keyword.toLowerCase())) {
+        push("Keyword", keyword, "company");
     }
   });
 
-  // User-defined sensitive keywords (act as company overrides)
   VALORA_CONFIG.sensitiveKeywords.forEach((keyword) => {
-    if (text.toLowerCase().includes(keyword.toLowerCase())) {
-      push("Keyword", keyword, "company");
+    if (cleanText.toLowerCase().includes(keyword.toLowerCase())) {
+        push("Keyword", keyword, "company");
     }
   });
 
-  // Custom patterns marked as company
   cr.customPatterns.forEach(({ label, pattern }) => {
     if (!pattern) return;
     try {
       const regex = new RegExp(pattern, "gi");
       let m;
-      while ((m = regex.exec(text)) !== null) {
+      while ((m = regex.exec(cleanText)) !== null) {
         push(label || "Custom pattern", m[0], "company");
       }
-    } catch (e) {
-      console.warn("[Valora] Skipping invalid company pattern:", pattern, e.message);
-    }
+    } catch (e) {}
   });
 
-  // ── 2. Built-in patterns (source = "general") ─────────────────────────────
-  // Because `seen` already contains any full emails matched as company above,
-  // the email regex below will skip them automatically via push()'s seen check.
+  // Built-in patterns
   if (VALORA_CONFIG.enableEmailDetection) {
     VALORA_CONFIG.companyDomains.length > 0
-      ? runPattern(PATTERNS.companyEmail, "general")
-      : runPattern(PATTERNS.genericEmail, "general");
+      ? runOnClean(PATTERNS.companyEmail, "general")
+      : runOnClean(PATTERNS.genericEmail, "general");
   }
-  if (VALORA_CONFIG.enableApiKeyDetection)     runPattern(PATTERNS.apiKey,      "general");
-  if (VALORA_CONFIG.enableCreditCardDetection) runPattern(PATTERNS.creditCard,  "general");
-  if (VALORA_CONFIG.enablePhoneDetection)      runPattern(PATTERNS.phone,       "general");
-  if (VALORA_CONFIG.enableSSNDetection)        runPattern(PATTERNS.ssn,         "general");
+  if (VALORA_CONFIG.enableApiKeyDetection)     runOnClean(PATTERNS.apiKey,      "general");
+  if (VALORA_CONFIG.enableCreditCardDetection) runOnClean(PATTERNS.creditCard,  "general");
+  if (VALORA_CONFIG.enablePhoneDetection)      runOnClean(PATTERNS.phone,       "general");
+  if (VALORA_CONFIG.enablePanDetection)        runOnClean(PATTERNS.pan,         "general");
 
-  // ── 3. General custom patterns from backend (source = "general") ──────────
+  // General custom patterns
   BACKEND_RULES.generalRules.customPatterns.forEach(({ label, pattern }) => {
     if (!pattern) return;
     try {
       const regex = new RegExp(pattern, "gi");
       let m;
-      while ((m = regex.exec(text)) !== null) {
+      while ((m = regex.exec(cleanText)) !== null) {
         push(label || "Custom pattern", m[0], "general");
       }
-    } catch (e) {
-      console.warn("[Valora] Skipping invalid general pattern:", pattern, e.message);
-    }
+    } catch (e) {}
   });
 
   return results;

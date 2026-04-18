@@ -38,7 +38,8 @@
     enableApiKeyDetection:     true,
     enableCreditCardDetection: true,
     enablePhoneDetection:      true,
-    enableSSNDetection:        true,
+    enableAadhaarDetection:    true,
+    enablePanDetection:        true,
     sensitiveKeywords:         [],
   };
 
@@ -124,7 +125,8 @@
       "enableApiKeyDetection",
       "enableCreditCardDetection",
       "enablePhoneDetection",
-      "enableSSNDetection",
+      "enableAadhaarDetection",
+      "enablePanDetection",
       "sensitiveKeywords",
     ];
 

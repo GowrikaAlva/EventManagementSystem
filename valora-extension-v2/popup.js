@@ -189,7 +189,8 @@ const DEFAULTS = {
   enableApiKeyDetection:     true,
   enableCreditCardDetection: true,
   enablePhoneDetection:      true,
-  enableSSNDetection:        true,
+  enableAadhaarDetection:    true,
+  enablePanDetection:        true,
   sensitiveKeywords: [],
 };
 
@@ -199,17 +200,19 @@ chrome.storage.local.get(DEFAULTS, (settings) => {
   document.getElementById("toggle-apikey").checked = settings.enableApiKeyDetection;
   document.getElementById("toggle-cc").checked     = settings.enableCreditCardDetection;
   document.getElementById("toggle-phone").checked  = settings.enablePhoneDetection;
-  document.getElementById("toggle-ssn").checked    = settings.enableSSNDetection;
+  document.getElementById("toggle-aadhaar").checked = settings.enableAadhaarDetection;
+  document.getElementById("toggle-pan").checked     = settings.enablePanDetection;
   renderKeywords(settings.sensitiveKeywords || []);
 });
 
 // ── 2. Save toggle changes immediately ───────────────────────────────────────
 const TOGGLE_MAP = {
-  "toggle-email":  "enableEmailDetection",
-  "toggle-apikey": "enableApiKeyDetection",
-  "toggle-cc":     "enableCreditCardDetection",
-  "toggle-phone":  "enablePhoneDetection",
-  "toggle-ssn":    "enableSSNDetection",
+  "toggle-email":   "enableEmailDetection",
+  "toggle-apikey":  "enableApiKeyDetection",
+  "toggle-cc":      "enableCreditCardDetection",
+  "toggle-phone":   "enablePhoneDetection",
+  "toggle-aadhaar": "enableAadhaarDetection",
+  "toggle-pan":     "enablePanDetection",
 };
 
 Object.keys(TOGGLE_MAP).forEach((id) => {
