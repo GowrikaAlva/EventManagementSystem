@@ -107,7 +107,7 @@ const DEFAULTS = {
   enableCreditCardDetection: true,
   enablePhoneDetection:      true,
   enableSSNDetection:        true,
-  companyDomains: ["@company.com"],
+  sensitiveKeywords: [],
 };
 
 // ── 1. Load settings on popup open ───────────────────────────────────────────
@@ -117,7 +117,7 @@ chrome.storage.local.get(DEFAULTS, (settings) => {
   document.getElementById("toggle-cc").checked     = settings.enableCreditCardDetection;
   document.getElementById("toggle-phone").checked  = settings.enablePhoneDetection;
   document.getElementById("toggle-ssn").checked    = settings.enableSSNDetection;
-  renderDomains(settings.companyDomains || []);
+  renderKeywords(settings.sensitiveKeywords || []);
 });
 
 // ── 2. Save toggle changes immediately ───────────────────────────────────────
@@ -135,58 +135,55 @@ Object.keys(TOGGLE_MAP).forEach((id) => {
   });
 });
 
-// ── 3. Domain management ──────────────────────────────────────────────────────
+// ── 3. Keyword management ──────────────────────────────────────────────────────
 
-function renderDomains(domains) {
-  const list = document.getElementById("domain-list");
+function renderKeywords(keywords) {
+  const list = document.getElementById("keyword-list");
   list.innerHTML = "";
 
-  if (!domains || domains.length === 0) return;
+  if (!keywords || keywords.length === 0) return;
 
-  domains.forEach((domain) => {
+  keywords.forEach((keyword) => {
     const chip = document.createElement("span");
     chip.className = "domain-chip";
-    chip.innerHTML = `${domain} <button title="Remove" data-d="${domain}">✕</button>`;
+    chip.innerHTML = `${keyword} <button title="Remove" data-k="${keyword}">✕</button>`;
     list.appendChild(chip);
   });
 
-  list.querySelectorAll("button[data-d]").forEach((btn) => {
-    btn.addEventListener("click", () => removeDomain(btn.dataset.d));
+  list.querySelectorAll("button[data-k]").forEach((btn) => {
+    btn.addEventListener("click", () => removeKeyword(btn.dataset.k));
   });
 }
 
-function addDomain() {
-  const input = document.getElementById("domain-input");
+function addKeyword() {
+  const input = document.getElementById("keyword-input");
   let value = (input.value || "").trim().toLowerCase();
   if (!value) return;
 
-  // Auto-prefix @ if missing
-  if (!value.startsWith("@")) value = "@" + value;
-
-  chrome.storage.local.get({ companyDomains: DEFAULTS.companyDomains }, (s) => {
-    const current = s.companyDomains || [];
+  chrome.storage.local.get({ sensitiveKeywords: DEFAULTS.sensitiveKeywords }, (s) => {
+    const current = s.sensitiveKeywords || [];
     if (current.includes(value)) {
       input.value = "";
       return;
     }
     const updated = [...current, value];
-    chrome.storage.local.set({ companyDomains: updated }, () => {
-      renderDomains(updated);
+    chrome.storage.local.set({ sensitiveKeywords: updated }, () => {
+      renderKeywords(updated);
       input.value = "";
     });
   });
 }
 
-function removeDomain(domain) {
-  chrome.storage.local.get({ companyDomains: DEFAULTS.companyDomains }, (s) => {
-    const updated = (s.companyDomains || []).filter((d) => d !== domain);
-    chrome.storage.local.set({ companyDomains: updated }, () => renderDomains(updated));
+function removeKeyword(keyword) {
+  chrome.storage.local.get({ sensitiveKeywords: DEFAULTS.sensitiveKeywords }, (s) => {
+    const updated = (s.sensitiveKeywords || []).filter((k) => k !== keyword);
+    chrome.storage.local.set({ sensitiveKeywords: updated }, () => renderKeywords(updated));
   });
 }
 
-document.getElementById("add-domain-btn").addEventListener("click", addDomain);
-document.getElementById("domain-input").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") addDomain();
+document.getElementById("add-keyword-btn").addEventListener("click", addKeyword);
+document.getElementById("keyword-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addKeyword();
 });
 
 // ── 4. Backend health check ───────────────────────────────────────────────────

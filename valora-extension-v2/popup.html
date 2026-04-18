@@ -342,6 +342,16 @@
     <span id="backend-label">Checking backend…</span>
   </div>
 
+  <!-- Sensitive Keywords -->
+  <div class="section">
+    <div class="section-label">Sensitive Keywords</div>
+    <div class="domain-row">
+      <input type="text" id="keyword-input" placeholder="Enter keyword…" />
+      <button class="add-btn" id="add-keyword-btn">Add</button>
+    </div>
+    <div id="keyword-list"></div>
+  </div>
+
   <!-- Detection toggles -->
   <div class="section">
     <div class="section-label">Detection categories</div>
@@ -387,15 +397,7 @@
     </div>
   </div>
 
-  <!-- Company domains -->
-  <div class="section">
-    <div class="section-label">Company domains</div>
-    <div class="domain-row">
-      <input type="text" id="domain-input" placeholder="@yourcompany.com" />
-      <button class="add-btn" id="add-domain-btn">Add</button>
-    </div>
-    <div id="domain-list"></div>
-  </div>
+
 
   <!-- Footer -->
   <div class="footer">Valora v2 · All detection runs locally · No data leaves your browser<br>
