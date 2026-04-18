@@ -1,20 +1,14 @@
-// ─── Valora — AES-256-GCM Encryption Utility ─────────────────────────────────
 const crypto = require("crypto");
 
 const ALGORITHM = "aes-256-gcm";
-const IV_LENGTH = 12; // 96-bit IV — optimal for GCM
+const IV_LENGTH = 12;
 
 function getKey() {
   const hex = process.env.ENCRYPTION_KEY;
-  if (!hex || hex.length !== 64) {
-    throw new Error("ENCRYPTION_KEY must be a 64-char hex string (32 bytes). Generate with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"");
-  }
+  if (!hex || hex.length !== 64) throw new Error("ENCRYPTION_KEY must be a 64-char hex string");
   return Buffer.from(hex, "hex");
 }
 
-/**
- * Encrypt plaintext → "iv:authTag:ciphertext" (all hex, colon-separated)
- */
 function encrypt(plaintext) {
   const iv      = crypto.randomBytes(IV_LENGTH);
   const cipher  = crypto.createCipheriv(ALGORITHM, getKey(), iv);
@@ -23,10 +17,6 @@ function encrypt(plaintext) {
   return [iv, authTag, enc].map((b) => b.toString("hex")).join(":");
 }
 
-/**
- * Decrypt "iv:authTag:ciphertext" → plaintext
- * Throws if the ciphertext has been tampered with (GCM auth tag mismatch).
- */
 function decrypt(encoded) {
   const [ivHex, authTagHex, encHex] = encoded.split(":");
   const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), Buffer.from(ivHex, "hex"));
@@ -37,4 +27,9 @@ function decrypt(encoded) {
   ]).toString("utf8");
 }
 
-module.exports = { encrypt, decrypt };
+/** SHA-256 of the plaintext — safe to store and send to the extension */
+function hashValue(plaintext) {
+  return crypto.createHash("sha256").update(plaintext.trim()).digest("hex");
+}
+
+module.exports = { encrypt, decrypt, hashValue };

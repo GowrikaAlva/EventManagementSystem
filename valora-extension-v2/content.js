@@ -32,6 +32,10 @@
   let toastShown     = false;
   let isProtectionEnabled = true;
 
+  // ── Hash-based detection state ─────────────────────────────────────────────
+  let companyApiKeyHashes    = [];  // [{ hash, label }, ...]
+  let companySensitiveHashes = [];  // [{ hash, label, type }, ...]
+
   // ── Settings defaults (kept in sync via storage listener) ─────────────────
   const SETTINGS_DEFAULTS = {
     enableEmailDetection:      true,
@@ -56,7 +60,6 @@
       return;
     }
 
-    // Load initial settings
     chrome.storage.local.get(["isProtectionEnabled"], (res) => {
       isProtectionEnabled = res.isProtectionEnabled ?? true;
     });
@@ -75,6 +78,11 @@
               companyRules: response.companyRules,
               generalRules: response.generalRules,
             });
+
+            // ── Populate hash arrays for encrypted field detection ──────────
+            companyApiKeyHashes    = (response.companyRules?.apiKeys          || []).map((k) => ({ hash: k.hash, label: k.label }));
+            companySensitiveHashes = (response.companyRules?.sensitiveNumbers || []).map((n) => ({ hash: n.hash, label: n.label, type: n.type }));
+            console.log(`[Valora] Loaded ${companyApiKeyHashes.length} API key hashes, ${companySensitiveHashes.length} number hashes`);
           } else {
             console.warn("[Valora] Could not load backend rules — using local fallback.");
           }
@@ -82,7 +90,6 @@
       );
     }
 
-    // Determine platform
     let platform = "Unknown";
     const hostname = window.location.hostname;
     if (hostname.includes("chatgpt.com")) platform = "ChatGPT";
@@ -90,7 +97,6 @@
     else if (hostname.includes("claude.ai")) platform = "Claude";
     else platform = hostname;
 
-    // Heartbeat ping
     chrome.runtime.sendMessage({ type: "PING_HEARTBEAT", token: valoraToken, platform });
 
     if (!scanInterval) {
@@ -100,7 +106,7 @@
     console.log("[Valora] v2 detection started ✓");
   }
 
-  // ── KEY FIX: Listen for popup toggle changes in real time ────────────────
+  // ── Storage change listener ────────────────────────────────────────────────
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
 
@@ -135,9 +141,7 @@
 
     const updated = {};
     relevantKeys.forEach((key) => {
-      if (changes[key] !== undefined) {
-        updated[key] = changes[key].newValue;
-      }
+      if (changes[key] !== undefined) updated[key] = changes[key].newValue;
     });
 
     applyStorageSettings(updated);
@@ -194,7 +198,7 @@
   function applyMaskInField(field, originalValue) {
     const current = getText(field);
     const masked  = originalValue.slice(0, 2) + "*".repeat(Math.max(originalValue.length - 4, 2)) + originalValue.slice(-2);
-    const regex = new RegExp(originalValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    const regex   = new RegExp(originalValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
     setText(field, current.replace(regex, masked));
   }
 
@@ -253,13 +257,8 @@
       btn.style.cursor  = "not-allowed";
       btn.title = "Valora: sensitive data detected — review before sending";
     }
-
-    // Also block Enter key on the input field
     const input = getInputBox();
-    if (input) {
-      input.addEventListener("keydown", interceptEnter, { capture: true });
-    }
-
+    if (input) input.addEventListener("keydown", interceptEnter, { capture: true });
     sendBlocked = true;
   }
 
@@ -274,13 +273,8 @@
       delete btn.dataset.valoraBlocked;
       delete btn.dataset.valoraOrigTitle;
     }
-
-    // Also remove Enter key blocker
     const input = getInputBox();
-    if (input) {
-      input.removeEventListener("keydown", interceptEnter, { capture: true });
-    }
-
+    if (input) input.removeEventListener("keydown", interceptEnter, { capture: true });
     sendBlocked = false;
   }
 
@@ -288,9 +282,42 @@
     e.preventDefault();
     e.stopImmediatePropagation();
     const generalMatches = currentMatches.filter((m) => m.source === "general");
-    if (generalMatches.length > 0) {
-      showModal(generalMatches);
+    if (generalMatches.length > 0) showModal(generalMatches);
+  }
+
+  // ── SHA-256 via SubtleCrypto (no library needed) ───────────────────────────
+  async function sha256(text) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  // ── Hash-based detection for API keys and sensitive numbers ────────────────
+  async function detectHashedValues(text) {
+    const matches = [];
+    if (!companyApiKeyHashes.length && !companySensitiveHashes.length) return matches;
+
+    // Try full text (direct paste) + individual tokens (typed/partial)
+    const tokens = [...new Set([
+      text.trim(),
+      ...text.split(/[\s,;\n]+/).map((t) => t.trim()).filter((t) => t.length >= 8),
+    ])];
+
+    for (const token of tokens) {
+      const h = await sha256(token);
+
+      for (const k of companyApiKeyHashes) {
+        if (k.hash === h) {
+          matches.push({ type: "API Key", subtype: k.label, value: token, source: "company" });
+        }
+      }
+      for (const n of companySensitiveHashes) {
+        if (n.hash === h) {
+          matches.push({ type: n.type, subtype: n.label, value: token, source: "company" });
+        }
+      }
     }
+
+    return matches;
   }
 
   // ── Modal ──────────────────────────────────────────────────────────────────
@@ -315,13 +342,13 @@
     const modal = document.createElement("div");
     modal.id = "valora-modal";
     Object.assign(modal.style, {
-      position:        "fixed",
-      inset:           "0",
-      background:      "rgba(0,0,0,0.55)",
-      zIndex:          "2147483647",
-      display:         "flex",
-      alignItems:      "center",
-      justifyContent:  "center",
+      position:       "fixed",
+      inset:          "0",
+      background:     "rgba(0,0,0,0.55)",
+      zIndex:         "2147483647",
+      display:        "flex",
+      alignItems:     "center",
+      justifyContent: "center",
     });
 
     modal.innerHTML = `
@@ -329,14 +356,12 @@
         border-radius:12px;padding:22px 24px;width:400px;max-width:92vw;max-height:80vh;
         overflow-y:auto;color:#e0e0f0;
         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-
         <div style="font-size:15px;font-weight:600;margin-bottom:4px;">
           Warning: Sensitive data detected
         </div>
         <div style="font-size:12px;color:#8888aa;margin-bottom:14px;">
           Select items to mask inline in your message, or redact all with [REDACTED].
         </div>
-
         <div style="font-size:12px;color:#8888aa;margin-bottom:6px;
           display:flex;justify-content:space-between;align-items:center;">
           <span>${matches.length} item${matches.length > 1 ? "s" : ""} found</span>
@@ -345,11 +370,9 @@
             Select all
           </span>
         </div>
-
         <ul id="valora-match-list" style="list-style:none;margin:0 0 14px;padding:0;">
           ${rows}
         </ul>
-
         <div style="font-size:11px;color:#666688;margin-bottom:16px;line-height:1.6;">
           <b style="color:#9090b8;">Mask selected</b> — replaces chosen values with
           <code style="font-size:11px;background:#1e1e3a;padding:1px 4px;
@@ -359,7 +382,6 @@
           <b style="color:#e05555;">Send anyway</b> — sends your message as-is without
           any masking (violation will be logged).
         </div>
-
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button id="valora-btn-mask-selected"
             style="flex:1;min-width:120px;padding:8px 12px;background:#2a1f6e;
@@ -392,11 +414,8 @@
     let allSelected = false;
     document.getElementById("valora-select-all").addEventListener("click", () => {
       allSelected = !allSelected;
-      modal.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-        cb.checked = allSelected;
-      });
-      document.getElementById("valora-select-all").textContent =
-        allSelected ? "Deselect all" : "Select all";
+      modal.querySelectorAll("input[type=checkbox]").forEach((cb) => { cb.checked = allSelected; });
+      document.getElementById("valora-select-all").textContent = allSelected ? "Deselect all" : "Select all";
       updateMaskBtnLabel();
     });
 
@@ -421,12 +440,9 @@
         return;
       }
 
-      checked.forEach((i) => {
-        if (input) applyMaskInField(input, matches[i].value);
-      });
+      checked.forEach((i) => { if (input) applyMaskInField(input, matches[i].value); });
 
       const remaining = matches.filter((_, i) => !checked.includes(i));
-
       if (remaining.length === 0) {
         modal.remove();
         unblockSendButton();
@@ -446,44 +462,25 @@
         const redacted = redactText(original, matches);
         setText(input, redacted);
       }
-
       await logViolation(matches, window.location.href);
-
       modal.remove();
       unblockSendButton();
       hideWarning();
-      lastText       = "";
-      currentMatches = [];
-
-      setTimeout(() => {
-        const btn = getSendButton();
-        if (btn) btn.click();
-      }, 80);
+      lastText = ""; currentMatches = [];
+      setTimeout(() => { const btn = getSendButton(); if (btn) btn.click(); }, 80);
     });
 
     document.getElementById("valora-btn-send-anyway").addEventListener("click", async () => {
-      // Log the violation even though the user chose to send as-is
       await logViolation(matches, window.location.href);
-
       modal.remove();
       unblockSendButton();
       hideWarning();
-      lastText       = "";
-      currentMatches = [];
-
-      setTimeout(() => {
-        const btn = getSendButton();
-        if (btn) btn.click();
-      }, 80);
+      lastText = ""; currentMatches = [];
+      setTimeout(() => { const btn = getSendButton(); if (btn) btn.click(); }, 80);
     });
 
-    document.getElementById("valora-btn-cancel").addEventListener("click", () => {
-      modal.remove();
-    });
-
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.remove();
-    });
+    document.getElementById("valora-btn-cancel").addEventListener("click", () => { modal.remove(); });
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
   }
 
   // ── Warning banner ─────────────────────────────────────────────────────────
@@ -545,8 +542,6 @@
   }
 
   // ── Main scan loop ─────────────────────────────────────────────────────────
-  // NOTE: scan() now includes an async trial check for individual users.
-  // Settings keep live via the chrome.storage.onChanged listener above.
   async function scan() {
     if (!isProtectionEnabled) {
       hideWarning();
@@ -569,7 +564,6 @@
       valoraUserType === "individual" &&
       (Date.now() > Date.parse(valoraTrialExpiry || 0) || (valoraScanCount || 0) >= 50)
     ) {
-      // Stop detection completely
       return;
     }
 
@@ -582,7 +576,16 @@
       return;
     }
 
-    const matches = detectSensitiveData(text);
+    // ── Sync regex/keyword detection ──────────────────────────────────────
+    const syncMatches = detectSensitiveData(text);
+
+    // ── Async hash detection for API keys and sensitive numbers ───────────
+    const hashedMatches = await detectHashedValues(text);
+
+    // ── Merge, deduplicate by value ───────────────────────────────────────
+    const seen = new Set(syncMatches.map((m) => m.value));
+    const matches = [...syncMatches, ...hashedMatches.filter((m) => !seen.has(m.value))];
+
     currentMatches = matches;
 
     if (!matches.length) {
@@ -592,12 +595,11 @@
     }
 
     const companyMatches = matches.filter((m) => m.source === "company");
+    const companyValues  = new Set(companyMatches.map((m) => m.value));
+    const generalMatches = matches.filter(
+      (m) => m.source === "general" && !companyValues.has(m.value)
+    );
 
-// Exclude any general match whose value is already covered by a company rule
-const companyValues  = new Set(companyMatches.map((m) => m.value));
-const generalMatches = matches.filter(
-  (m) => m.source === "general" && !companyValues.has(m.value)
-);
     if (companyMatches.length) {
       companyMatches.forEach((m) => applyMaskInField(input, m.value));
       showCompanyToast(companyMatches.length);

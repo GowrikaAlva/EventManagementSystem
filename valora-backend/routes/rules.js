@@ -2,8 +2,8 @@
 const express  = require("express");
 const router   = express.Router();
 const Rule     = require("../models/Rule");
-const { encrypt, decrypt } = require("../utils/encryption");
-const { asyncHandler }     = require("../middleware/errorHandler");
+const { encrypt, hashValue } = require("../utils/encryption");
+const { asyncHandler }       = require("../middleware/errorHandler");
 const { authMiddleware, adminMiddleware } = require("../middleware/authMiddleware");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -14,13 +14,13 @@ async function getRules(orgId) {
   return rules;
 }
 
-/** Strip encryptedValue before sending to client */
+// hash is safe to send to extension — encryptedValue is never sent
 function safeApiKey(f) {
-  return { _id: f._id, label: f.label, hint: f.hint };
+  return { _id: f._id, label: f.label, hint: f.hint, hash: f.hash };
 }
 
 function safeNumber(f) {
-  return { _id: f._id, label: f.label, type: f.type, hint: f.hint };
+  return { _id: f._id, label: f.label, type: f.type, hint: f.hint, hash: f.hash };
 }
 
 // ─── GET /api/rules ───────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ router.get(
         domains:          rule.domains        || [],
         keywords:         rule.keywords       || [],
         customPatterns:   companyPatterns,
-        apiKeys:          (rule.apiKeys          || []).map(safeApiKey),   // never expose encryptedValue
+        apiKeys:          (rule.apiKeys          || []).map(safeApiKey),
         sensitiveNumbers: (rule.sensitiveNumbers || []).map(safeNumber),
       },
       generalRules: {
@@ -207,19 +207,18 @@ router.post(
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { label, value } = req.body;
-    if (!label || !value) {
+    if (!label || !value)
       return res.status(400).json({ success: false, error: "label and value are required" });
-    }
 
-    const rules = await getRules(req.orgId);
+    const rules  = await getRules(req.orgId);
     const exists = rules.apiKeys.some((k) => k.label.toLowerCase() === label.toLowerCase().trim());
-    if (exists) {
+    if (exists)
       return res.status(409).json({ success: false, error: "An API key with this label already exists" });
-    }
 
     rules.apiKeys.push({
       label:          label.trim(),
       encryptedValue: encrypt(value),
+      hash:           hashValue(value),
       hint:           value.slice(-4),
     });
     await rules.save();
@@ -228,18 +227,17 @@ router.post(
   })
 );
 
-// ─── DELETE /api/rules/apikey/:id ────────────────────────────────────────────
+// ─── DELETE /api/rules/apikey/:id ─────────────────────────────────────────────
 router.delete(
   "/apikey/:id",
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
-    const rules = await getRules(req.orgId);
+    const rules  = await getRules(req.orgId);
     const before = rules.apiKeys.length;
     rules.apiKeys = rules.apiKeys.filter((k) => k._id.toString() !== req.params.id);
 
-    if (rules.apiKeys.length === before) {
+    if (rules.apiKeys.length === before)
       return res.status(404).json({ success: false, error: "API key not found" });
-    }
 
     await rules.save();
     console.log(`[Rules] API key removed: ${req.params.id}`);
@@ -253,28 +251,26 @@ router.post(
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
     const { label, type, value } = req.body;
-    if (!label || !type || !value) {
+    if (!label || !type || !value)
       return res.status(400).json({ success: false, error: "label, type and value are required" });
-    }
 
     const VALID_TYPES = ["phone", "account_number", "tax_id", "other"];
-    if (!VALID_TYPES.includes(type)) {
+    if (!VALID_TYPES.includes(type))
       return res.status(400).json({ success: false, error: `type must be one of: ${VALID_TYPES.join(", ")}` });
-    }
 
-    const rules = await getRules(req.orgId);
+    const rules  = await getRules(req.orgId);
     const exists = rules.sensitiveNumbers.some(
       (n) => n.label.toLowerCase() === label.toLowerCase().trim()
     );
-    if (exists) {
+    if (exists)
       return res.status(409).json({ success: false, error: "A number with this label already exists" });
-    }
 
     rules.sensitiveNumbers.push({
       label:          label.trim(),
       type,
       encryptedValue: encrypt(value),
-      hint:           value.replace(/\D/g, "").slice(-4), // last 4 digits only
+      hash:           hashValue(value),
+      hint:           value.replace(/\D/g, "").slice(-4),
     });
     await rules.save();
     console.log(`[Rules] Sensitive number added: ${label.trim()} (${type})`);
@@ -282,20 +278,19 @@ router.post(
   })
 );
 
-// ─── DELETE /api/rules/number/:id ────────────────────────────────────────────
+// ─── DELETE /api/rules/number/:id ─────────────────────────────────────────────
 router.delete(
   "/number/:id",
   [authMiddleware, adminMiddleware],
   asyncHandler(async (req, res) => {
-    const rules = await getRules(req.orgId);
+    const rules  = await getRules(req.orgId);
     const before = rules.sensitiveNumbers.length;
     rules.sensitiveNumbers = rules.sensitiveNumbers.filter(
       (n) => n._id.toString() !== req.params.id
     );
 
-    if (rules.sensitiveNumbers.length === before) {
+    if (rules.sensitiveNumbers.length === before)
       return res.status(404).json({ success: false, error: "Number not found" });
-    }
 
     await rules.save();
     console.log(`[Rules] Sensitive number removed: ${req.params.id}`);
