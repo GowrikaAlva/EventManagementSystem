@@ -299,6 +299,7 @@
 
   <!-- Login View -->
   <div id="login-view">
+    <button class="back-btn" style="background:none; border:none; color:rgba(234,240,255,.52); cursor:pointer; font-size: 11px; margin-bottom: 12px; padding: 0; align-self: flex-start;">← Back</button>
     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
       <div class="logo"><img src="icons/valora-logo.svg" alt="Valora" /></div>
       <h1 style="font-size:16px;">Valora Security</h1>
@@ -334,6 +335,7 @@
     <div class="status">
       <div class="dot"></div> Active
     </div>
+    <button id="btn-logout" style="background:none; border:1px solid rgba(255,255,255,0.1); color:rgba(234,240,255,.6); cursor:pointer; font-size: 11px; margin-left: 14px; padding: 4px 8px; border-radius: 4px;">Logout</button>
   </div>
 
   <!-- Backend status indicator -->
@@ -400,9 +402,7 @@
 
 
   <!-- Footer -->
-  <div class="footer">Valora v2 · All detection runs locally · No data leaves your browser<br>
-    <a href="#" id="btn-logout" style="color: #666; text-decoration: underline; margin-top: 5px; display: inline-block;">Logout</a>
-  </div>
+  <div class="footer">Valora v2 · All detection runs locally · No data leaves your browser</div>
 
   </div> <!-- End Main View -->
 
@@ -428,6 +428,7 @@
 
   <!-- Register View -->
   <div id="register-view" class="hidden" style="display: flex; flex-direction: column; padding: 20px 18px; gap: 12px;">
+    <button class="back-btn" style="background:none; border:none; color:rgba(234,240,255,.52); cursor:pointer; font-size: 11px; margin-bottom: 2px; padding: 0; align-self: flex-start;">← Back</button>
     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
       <div class="logo"><img src="icons/valora-logo.svg" alt="Valora" /></div>
       <h1 style="font-size:16px;">Create Account</h1>
@@ -497,6 +498,7 @@
 
   <!-- Org Role View -->
   <div id="org-role-view" class="hidden" style="display: flex; flex-direction: column; padding: 20px 18px; gap: 16px;">
+    <button class="back-btn" style="background:none; border:none; color:rgba(234,240,255,.52); cursor:pointer; font-size: 11px; margin-bottom: -4px; padding: 0; align-self: flex-start;">← Back</button>
     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
       <div class="logo"><img src="icons/valora-logo.svg" alt="Valora" /></div>
       <h1 style="font-size:16px;">Valora Security</h1>
@@ -514,9 +516,6 @@
       <div style="font-size: 11px; color: rgba(234,240,255,.52);">Manage company security policy.</div>
     </div>
 
-    <div style="display: flex; justify-content: flex-start; margin-top: 8px;">
-      <button id="btn-org-role-back" style="background:none; border:none; color:rgba(234,240,255,.52); cursor:pointer; font-size: 11px;">← Back</button>
-    </div>
   </div>
 
   <script src="popup.js"></script>
