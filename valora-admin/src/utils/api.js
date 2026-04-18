@@ -6,7 +6,7 @@ const api = axios.create({
 
 // Auto-inject token into headers
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('valoraAdminToken');
+  const token = sessionStorage.getItem('valoraAdminToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
